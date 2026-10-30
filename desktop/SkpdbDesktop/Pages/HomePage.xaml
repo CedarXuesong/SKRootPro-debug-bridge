@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="SkpdbDesktop.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SkpdbDesktop"
+    NavigationCacheMode="Required">
+
+    <ScrollViewer x:Name="PageScroll" Padding="32,20,32,24"
+                  HorizontalScrollBarVisibility="Disabled"
+                  HorizontalContentAlignment="Stretch"
+                  VerticalContentAlignment="Top">
+        <StackPanel x:Name="ContentColumn" Spacing="12"
+                    HorizontalAlignment="Left" VerticalAlignment="Top">
+            <StackPanel>
+                <TextBlock Text="主页" Style="{StaticResource PageTitleStyle}" />
+            </StackPanel>
+
+            <InfoBar x:Name="ErrorBar" IsOpen="False" Severity="Error" IsClosable="True" />
+
+            <Border Style="{StaticResource CardStyle}">
+                <Grid RowSpacing="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="设备连接" FontSize="16" FontWeight="SemiBold" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                                    VerticalAlignment="Center">
+                            <Ellipse x:Name="StatusDot" Width="8" Height="8"
+                                     Fill="{ThemeResource SystemFillColorNeutralBrush}" />
+                            <TextBlock x:Name="StatusText" Text="未连接"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="1" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="3*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="HostBox" Header="设备地址"
+                                 PlaceholderText="192.0.2.1" />
+                        <TextBox x:Name="PortBox" Header="端口" Grid.Column="1"
+                                 PlaceholderText="39876" />
+                        <PasswordBox x:Name="KeyBox" Header="Root 密钥" Grid.Column="2"
+                                     PasswordRevealMode="Peek"
+                                     PlaceholderText="输入设备 root key" />
+                        <Button x:Name="ConnectButton" Grid.Column="3" Width="104"
+                                Height="32" VerticalAlignment="Bottom"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Content="连接" Click="ConnectButton_Click" />
+                    </Grid>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12">
+                        <FontIcon Glyph="&#xE72E;" FontSize="12"
+                                  Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <TextBlock x:Name="ConnectionHint"
+                                   Text="knock 39877 · 超时 10s · 密钥只保存在本次进程内存"
+                                   Style="{StaticResource MetricLabelStyle}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="模块状态" FontSize="16" FontWeight="SemiBold" />
+                    <Grid ColumnSpacing="24" RowSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="模块" Style="{StaticResource MetricLabelStyle}" />
+                            <TextBlock x:Name="ModuleNameText" Text="—"
+                                       Style="{StaticResource MetricValueStyle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="2">
+                            <TextBlock Text="版本" Style="{StaticResource MetricLabelStyle}" />
+                            <TextBlock x:Name="VersionText" Text="—"
+                                       Style="{StaticResource MetricValueStyle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="2">
+                            <TextBlock Text="PID / 运行时长" Style="{StaticResource MetricLabelStyle}" />
+                            <TextBlock x:Name="PidText" Text="—"
+                                       Style="{StaticResource MetricValueStyle}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Spacing="2">
+                            <TextBlock Text="服务端口" Style="{StaticResource MetricLabelStyle}" />
+                            <TextBlock x:Name="PortsText" Text="—"
+                                       Style="{StaticResource MetricValueStyle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                            <TextBlock Text="会话 / peers" Style="{StaticResource MetricLabelStyle}" />
+                            <TextBlock x:Name="SessionsText" Text="—"
+                                       Style="{StaticResource MetricValueStyle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="2" Spacing="2">
+                            <TextBlock Text="内存后端" Style="{StaticResource MetricLabelStyle}" />
+                            <TextBlock x:Name="MemoryText" Text="—"
+                                       Style="{StaticResource MetricValueStyle}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0" Tag="terminal" Click="QuickAction_Click"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        Padding="14,12" MinHeight="88">
+                    <StackPanel Spacing="4">
+                        <FontIcon Glyph="&#xE756;" FontSize="20"
+                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Text="终端" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1" Tag="files" Click="QuickAction_Click"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        Padding="14,12" MinHeight="88">
+                    <StackPanel Spacing="4">
+                        <FontIcon Glyph="&#xE8B7;" FontSize="20"
+                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Text="文件" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Tag="memory" Click="QuickAction_Click"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        Padding="14,12" MinHeight="88">
+                    <StackPanel Spacing="4">
+                        <FontIcon Glyph="&#xE950;" FontSize="20"
+                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Text="内存" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="3" Tag="touch" Click="QuickAction_Click"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        Padding="14,12" MinHeight="88">
+                    <StackPanel Spacing="4">
+                        <FontIcon Glyph="&#xE7C9;" FontSize="20"
+                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Text="触摸" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="最近活动" FontSize="16" FontWeight="SemiBold" />
+                    <ItemsControl x:Name="ActivityList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:ActivityItem">
+                                <Grid ColumnSpacing="12" Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{x:Bind Time}"
+                                               Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock Grid.Column="1" Text="{x:Bind Text}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="EmptyActivityText" Text="还没有活动记录。"
+                               Style="{StaticResource MetricLabelStyle}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

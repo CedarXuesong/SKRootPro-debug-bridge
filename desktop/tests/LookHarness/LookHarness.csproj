@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../SkpdbDesktop/AtomicFile.cs" Link="AtomicFile.cs" />
+    <Compile Include="../../SkpdbDesktop/SettingsStore.cs" Link="SettingsStore.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/SampledInputState.cs" Link="SampledInputState.cs" />
+    <Compile Include="../../SkpdbDesktop/SkpdbClient.cs" Link="SkpdbClient.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/ControlOverlaySession.cs" Link="ControlOverlaySession.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/GyroMotion.cs" Link="GyroMotion.cs" />
+    <Compile Include="../../SkpdbDesktop/ScreenSnapshotCapture.cs" Link="ScreenSnapshotCapture.cs" />
+    <Compile Include="../../SkpdbDesktop/Models.cs" Link="Models.cs" />
+    <Compile Include="../../SkpdbDesktop/AppPaths.cs" Link="AppPaths.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/GamepadEngine.cs" Link="GamepadEngine.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/ForegroundWatcher.cs" Link="ForegroundWatcher.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/PrecisionSampleClock.cs" Link="PrecisionSampleClock.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/PointerCaptureRegion.cs" Link="PointerCaptureRegion.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/LookTouchRelay.cs" Link="LookTouchRelay.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/SampledButtonContact.cs" Link="SampledButtonContact.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/SampledButtonAction.cs" Link="SampledButtonAction.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/SampledJoystick.cs" Link="SampledJoystick.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/TouchSlotAllocator.cs" Link="TouchSlotAllocator.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/LocalInputPreview.cs" Link="LocalInputPreview.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/TouchTraceBuffer.cs" Link="TouchTraceBuffer.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/GamepadProfile.cs" Link="GamepadProfile.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/GamepadProfileStore.cs" Link="GamepadProfileStore.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/GamepadControlKind.cs" Link="GamepadControlKind.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/TouchDeviceInfo.cs" Link="TouchDeviceInfo.cs" />
+  </ItemGroup>
+</Project>

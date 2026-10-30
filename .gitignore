@@ -1,0 +1,55 @@
+# Build output
+dist/
+host/build/
+skpdb_probe/obj/
+skpdb_probe/libs/
+skpdb_probe/libs-experimental/
+skpdb_probe/*_obj/
+skpdb_probe/*_libs/
+skpdb_probe/skpdb_dev_network.zip
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Native objects
+*.o
+*.o.d
+
+# Third-party material kept on disk for reference, not part of the project
+SKRoot-linuxKernelRoot(Reference)/
+skpdb_detector_app/
+
+# Local machine configuration (tunnel endpoints, keys)
+frpc-*.toml
+skpdb_probe/skpdb_install.trace
+
+# Desktop client build state
+desktop/**/bin/
+desktop/**/obj/
+
+.tools/
+.scratch/
+
+# Local user data, private evidence and unrelated workspace projects
+**/data/
+*.log
+*.dmp
+*.pfx
+*.jks
+*.keystore
+.env
+.env.*
+desktop/screenshots/
+desktop/preview.png
+desktop/REVIEW-*.md
+skpdb_probe/REVIEW-*.md
+sqsystem-license-takeover/
+System.Management.Automation.Internal.Host.InternalHost
+
+# Recreated from source by skpdb_probe/build.ps1
+skpdb_probe/src/display/cursor_dex.h
+skpdb_probe/src/input/gyro_payload_bytes.h
+skpdb_probe/src/input/touch_guard_bytes.h
+skpdb_probe/src/wireless/webui_assets.h

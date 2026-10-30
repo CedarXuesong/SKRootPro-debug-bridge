@@ -1,0 +1,53 @@
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const fields = ['service_port','knock_port','idle_timeout_seconds','auth_window_seconds'];
+  let csrf=document.querySelector('meta[name="skpdb-csrf"]').content, live=false, gone=false, beatTimer=null, refreshTimer=null, beating=false, refreshing=false;
+  let dirty=false, saving=false, latest={}, diagnosticReport='', fileEpoch=0;
+  function lines(text){const result=Object.create(null);for(const row of text.split('\n')){const p=row.indexOf('=');if(p>0)result[row.slice(0,p).trim()]=row.slice(p+1).trim();}return result;}
+  function say(id,text,bad=false){$(id).textContent=text;$(id).classList.toggle('bad',bad);}
+  async function call(method,path,body){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+    try{
+      const headers={};if(csrf)headers['X-SKPDB-CSRF']=csrf;if(method==='POST')headers['Content-Type']='text/plain; charset=utf-8';
+      const response=await fetch(path,{method,headers,body,cache:'no-store',credentials:'same-origin',signal:controller.signal});
+      const text=await response.text();if(!response.ok){const error=new Error(text||'请求失败 '+response.status);error.status=response.status;throw error;}return text;
+    }catch(error){if(error.name==='AbortError')throw new Error('请求超时');throw error;}finally{clearTimeout(timer);}
+  }
+  function stopTimers(){clearInterval(beatTimer);clearInterval(refreshTimer);beatTimer=refreshTimer=null;}
+  function expired(message){gone=true;live=false;csrf='';stopTimers();$('workspace').hidden=true;$('connection-error').hidden=false;say('error-message',message,true);say('connection','连接已结束',true);say('footer-state','');}
+  async function beat(){if(beating||!live||document.visibilityState!=='visible')return;beating=true;try{await call('POST','/api/alive','');}catch(error){expired('连接失败：'+error.message);}finally{beating=false;}}
+  function timers(){stopTimers();if(!live||gone||document.visibilityState!=='visible')return;beat();beatTimer=setInterval(beat,1000);refreshTimer=setInterval(()=>loadInfo().catch(e=>say('global-status',e.message,true)),2000);}
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')timers();else stopTimers();});
+  function fill(id,map,labels){const parent=$(id);parent.replaceChildren();for(const [key,label] of labels){if(!(key in map))continue;const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=map[key]||'—';parent.append(dt,dd);}}
+  function uptime(n){n=Math.max(0,Number(n)||0);return Math.floor(n/3600)+' 小时 '+Math.floor(n%3600/60)+' 分钟';}
+  function fillSettings(){for(const key of fields)if(key in latest)$(key).value=latest[key];$('always_listen').checked=latest.always_listen==='1';say('dirty-status','—');}
+  async function loadInfo(){if(refreshing||!live)return;refreshing=true;try{
+    const map=lines(await call('GET','/api/info'));latest=map;
+    $('version').textContent=map.version||'—';$('uptime').textContent=uptime(map.uptime_seconds);
+    $('sessions').textContent=map.sessions||'0';$('listen-state').textContent=map.always_listen==='1'?'始终监听':map.listening==='yes'?'监听 · 已开放':'监听 · 已关闭';
+    $('fast-ok').textContent=map.fast_ok||'0';$('fast-mode').textContent='SKF'+(map.fast_protocol||'?')+' · '+(map.fast_rate_hz||'—')+' Hz';
+    $('hud-state').textContent=map['overlay.hud_visible']==='1'?'显示中':map['overlay.renderer']==='ready'?'待命':'未启动';
+    fill('module-info',map,[['name','模块'],['pid','运行 PID'],['system.android','Android'],['system.sdk','API'],['system.kernel','内核'],['system.arch','架构'],['system.model','设备'],['system.btf_file','BTF 文件'],['id32','模块编号']]);
+    const network=Object.keys(map).filter(k=>k.startsWith('network.')).map(k=>[k,k.slice(8)+' 地址']);
+    fill('transport-info',map,[['service_port','TCP 端口'],['knock_port','knock 端口'],['fast_port','触摸 UDP 端口'],['fast_rx','收到触摸包'],['fast_ok','已应用事件'],['fast_bad','无效包'],['fast_stale','过期包'],['fast_dropped','丢弃/覆盖'],['fast_max_records','每帧最多记录'],['fast_buffer_samples','缓冲采样数'],['fast_realtime','实时线程'],['sessions_total','累计连接'],...network]);
+    fill('overlay-info',map,[['overlay.renderer','渲染器'],['overlay.cursor_visible','光标显示'],['overlay.hud_visible','调试面板显示'],['overlay.hud_width','当前逻辑宽度'],['overlay.hud_height','当前逻辑高度'],['overlay.hud_rotation','旋转编号'],['overlay.hud_background','面板背景'],['overlay.hud_lease_ms','失联隐藏 ms'],['cursor_fast_rx','光标 UDP 收包'],['cursor_fast_ok','光标已应用'],['cursor_fast_bad','光标无效包']]);
+    if(!dirty&&!saving)fillSettings();say('updated','更新 '+new Date().toLocaleTimeString());
+  }finally{refreshing=false;}}
+  for(const button of document.querySelectorAll('[data-tab]')){button.setAttribute('role','tab');button.addEventListener('click',()=>{for(const b of document.querySelectorAll('[data-tab]')){const selected=b===button;b.setAttribute('aria-selected',String(selected));$(b.dataset.tab).hidden=!selected;}say('global-status','');});}
+  $('refresh').addEventListener('click',async()=>{try{await loadInfo();say('global-status','已刷新');}catch(e){say('global-status',e.message,true);}});
+  for(const input of $('settings-form').querySelectorAll('input'))input.addEventListener('input',()=>{dirty=true;say('dirty-status','未保存');});
+  $('reset-settings').addEventListener('click',()=>{dirty=false;fillSettings();say('settings-status','已还原');});
+  $('settings-form').addEventListener('submit',async event=>{event.preventDefault();if(saving||!$('settings-form').reportValidity())return;saving=true;const controls=Array.from($('settings-form').elements);controls.forEach(e=>e.disabled=true);const body=fields.map(k=>k+'='+$(k).value.trim()).concat('always_listen='+($('always_listen').checked?'1':'0')).join('&');say('settings-status','保存中');try{const reply=lines(await call('POST','/api/config',body));dirty=false;saving=false;await loadInfo();say('settings-status',reply.applied==='ports-restarted'?'已保存，端口已更新':'设置已保存');}catch(error){say('settings-status',error.message,true);}finally{saving=false;controls.forEach(e=>e.disabled=false);}});
+  $('run-diagnostics').addEventListener('click',async()=>{const b=$('run-diagnostics');if(b.disabled)return;b.disabled=true;say('diagnostic-status','检测中');try{const raw=await call('POST','/api/diagnostics',''),map=lines(raw);diagnosticReport='SKPDB 诊断报告\n采集时间：'+new Date().toISOString()+'\n模块版本：'+(latest.version||'—')+'\n'+raw;const parent=$('diagnostic-results');parent.replaceChildren();for(const [prefix,title] of [['system.','系统环境'],['touch.','触摸设备'],['overlay.','调试显示层'],['memory.','内存后端']]){const card=document.createElement('section');card.className='card';const heading=document.createElement('h3'),dl=document.createElement('dl');heading.textContent=title;card.append(heading,dl);for(const key of Object.keys(map).filter(k=>k.startsWith(prefix))){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key.slice(prefix.length);dd.textContent=map[key];if(/failed|broken|unavailable/.test(map[key]))dd.className='bad';dl.append(dt,dd);}parent.append(card);}say('diagnostic-status','检测完成');$('copy-report').disabled=$('download-report').disabled=false;}catch(e){say('diagnostic-status',e.message,true);}finally{b.disabled=false;}});
+  $('copy-report').addEventListener('click',async()=>{try{if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(diagnosticReport);else{const t=document.createElement('textarea');t.value=diagnosticReport;document.body.append(t);t.select();const ok=document.execCommand('copy');t.remove();if(!ok)throw new Error('复制失败，请下载报告');}say('diagnostic-status','已复制');}catch(e){say('diagnostic-status',e.message,true);}});
+  $('download-report').addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([diagnosticReport],{type:'text/plain;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='SKPDB-diagnostics-'+new Date().toISOString().replace(/[:.]/g,'-')+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+  $('ping').addEventListener('click',async()=>{const b=$('ping');if(b.disabled)return;b.disabled=true;const start=performance.now();try{await call('GET','/api/info');say('ping-status','往返 '+(performance.now()-start).toFixed(1)+' ms');}catch(e){say('ping-status',e.message,true);}finally{b.disabled=false;}});
+  $('exec-form').addEventListener('submit',async event=>{event.preventDefault();const b=$('exec-button');if(b.disabled)return;const command=$('command').value.trim();if(!command)return;b.disabled=true;say('exec-output','执行中');try{say('exec-output',await call('POST','/api/exec',command));}catch(e){say('exec-output',e.message,true);}finally{b.disabled=false;}});
+  async function listFiles(path){const epoch=++fileEpoch;say('file-status','读取中');try{const text=await call('GET','/api/list?path='+encodeURIComponent(path));if(epoch!==fileEpoch)return;$('file-path').value=path;$('file-list').replaceChildren();const parts=path.split('/').filter(Boolean);if(parts.length){const up=document.createElement('button');up.type='button';up.textContent='↰ 上一级';up.addEventListener('click',()=>listFiles('/'+parts.slice(0,-1).join('/')));$('file-list').append(up);}for(const row of text.split('\n')){const p=row.indexOf('\t');if(p<0)continue;const kind=row.slice(0,p),name=row.slice(p+1),full=path.replace(/\/$/,'')+'/'+name,b=document.createElement('button');b.type='button';b.textContent=(kind==='d'?'目录 · ':'文件 · ')+name;b.addEventListener('click',async()=>{if(kind==='d'){listFiles(full);return;}const itemEpoch=++fileEpoch;say('file-status','读取文件…');try{const content=await call('GET','/api/file?path='+encodeURIComponent(full));if(itemEpoch!==fileEpoch)return;say('file-content',content);say('file-status',full);}catch(e){if(itemEpoch===fileEpoch)say('file-status',e.message,true);}});$('file-list').append(b);}say('file-status','');}catch(e){if(epoch===fileEpoch)say('file-status',e.message,true);}}
+  $('files-form').addEventListener('submit',event=>{event.preventDefault();listFiles($('file-path').value.trim());});
+  $('stop-webui').addEventListener('click',async()=>{const b=$('stop-webui');if(b.disabled)return;b.disabled=true;try{await call('POST','/api/webui/stop','');}catch(e){if(e.status){say('global-status',e.message,true);b.disabled=false;return;}/* Closing the loader can end its response socket. */}expired('WebUI 已关闭');});
+  if(location.hash||location.search)history.replaceState(null,'',location.pathname);
+  if(!/^[0-9a-f]{64}$/.test(csrf))expired('页面已失效，请重新打开');
+  else{live=true;timers();loadInfo().then(()=>{say('connection','在线');say('footer-state','');}).catch(error=>expired('连接模块失败：'+error.message));}
+})();

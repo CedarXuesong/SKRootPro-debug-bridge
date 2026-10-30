@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="SkpdbDesktop.TerminalPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    NavigationCacheMode="Required">
+
+    <Grid Padding="32,24,32,32" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="终端" Style="{StaticResource PageTitleStyle}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                        VerticalAlignment="Bottom">
+                <Button Content="清空" Click="ClearButton_Click" />
+                <Button Content="复制" Click="CopyButton_Click" />
+            </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0">
+            <Grid RowSpacing="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Padding="16,12" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="设备 shell" FontWeight="SemiBold" />
+                    <ProgressRing x:Name="Progress" Grid.Column="1" Width="18" Height="18"
+                                  IsActive="False" />
+                </Grid>
+
+                <ScrollViewer x:Name="OutputScroll" Grid.Row="1" Padding="16,0,16,8"
+                              VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="OutputText"
+                               FontFamily="Cascadia Mono"
+                               FontSize="13"
+                               IsTextSelectionEnabled="True"
+                               TextWrapping="Wrap"
+                               Text="连接设备后，在这里输入命令。" />
+                </ScrollViewer>
+
+                <Grid Grid.Row="2" Padding="16,12" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="$" FontFamily="Cascadia Mono" FontSize="14"
+                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBox x:Name="CommandBox" Grid.Column="1"
+                             PlaceholderText="输入 adb shell 命令，Enter 执行"
+                             FontFamily="Cascadia Mono"
+                             KeyDown="CommandBox_KeyDown" />
+                    <Button x:Name="SendButton" Grid.Column="2" Content="发送"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Click="SendButton_Click" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Page>

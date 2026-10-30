@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>SKPDB 视角接力实验室</title>
+<style>
+html,body{margin:0;position:fixed;inset:0;background:#08111c;overflow:hidden;touch-action:none;overscroll-behavior:none;color:#d5e8f7;font:13px/1.5 system-ui}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+#hud{position:absolute;top:12px;left:16px;white-space:pre;pointer-events:none;background:#07121dcc;padding:10px;border:1px solid #28425a;border-radius:8px}
+#start{position:absolute;inset:0;display:grid;place-content:center;background:#08111cdd;text-align:center;font-size:20px}
+#start small{font-size:13px;color:#a1bbd0}
+</style>
+<canvas></canvas><div id="hud"></div><div id="start">轻触开始视角测试<small>连续转动 · 双指交接 · 原始触摸与逐帧角度记录</small></div>
+<script>
+'use strict';
+const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d'),hud=document.querySelector('#hud');
+let width=innerWidth,height=innerHeight,generation=-1,run='ready',yaw=0,pitch=0,primary=null,dxTotal=0,dyTotal=0;
+let events=[],frames=[],history=[],touches=new Map(),lastFrame=0,reporting=false,controlling=false;
+let screenLock;
+async function keepAwake(){try{screenLock=await navigator.wakeLock?.request('screen')}catch{}}
+addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')keepAwake()});
+function resize(){width=innerWidth;height=innerHeight;canvas.width=Math.round(width*devicePixelRatio);canvas.height=Math.round(height*devicePixelRatio);ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}
+addEventListener('resize',resize);resize();
+document.querySelector('#start').addEventListener('click',async()=>{
+  document.querySelector('#start').remove();
+  try{await document.documentElement.requestFullscreen();await screen.orientation.lock('landscape')}catch{}
+  keepAwake();
+});
+function record(kind,extra={}){events.push({t:performance.now(),kind,n:touches.size,primary,...extra})}
+// Add all look fingers, like multiple relative mice. Each DOWN has its own
+// baseline; primary is historical telemetry only. Fire / move stay excluded.
+function cameraPoint(t){return t.clientX>width*.55 && t.clientY<height*.82}
+function update(t){
+  const old=touches.get(t.identifier);if(!old)return;
+  const dx=t.clientX-old.x,dy=t.clientY-old.y;
+  old.x=t.clientX;old.y=t.clientY;
+  if(old.camera && (dx || dy)){
+    dxTotal+=dx;dyTotal+=dy;yaw-=dx*.0045;pitch=Math.max(-1.1,Math.min(1.1,pitch+dy*.0035));
+    record('camera',{id:t.identifier,dx,dy,yaw:yaw*180/Math.PI});
+  }
+}
+function transfer(){
+  if(primary!==null && touches.has(primary))return;
+  primary=null;for(const[id,p]of touches){if(p.camera){primary=id;break}}
+  record('primary',{id:primary});
+}
+addEventListener('touchstart',e=>{
+  if(document.querySelector('#start'))return;
+  e.preventDefault();for(const t of e.touches)update(t);
+  for(const t of e.changedTouches){touches.set(t.identifier,{x:t.clientX,y:t.clientY,camera:cameraPoint(t)});record('down',{id:t.identifier,x:t.clientX,y:t.clientY})}
+  transfer();
+},{passive:false});
+addEventListener('touchmove',e=>{
+  e.preventDefault();for(const t of e.touches)update(t);
+},{passive:false});
+function end(e){
+  if(document.querySelector('#start'))return;
+  e.preventDefault();for(const t of e.touches)update(t);for(const t of e.changedTouches)update(t);
+  for(const t of e.changedTouches){touches.delete(t.identifier);record('up',{id:t.identifier,cancel:e.type==='touchcancel'})}transfer();
+}
+addEventListener('touchend',end,{passive:false});addEventListener('touchcancel',end,{passive:false});
+async function control(){
+  if(controlling || document.visibilityState!=='visible')return;controlling=true;
+  try{const c=await(await fetch('/control',{signal:AbortSignal.timeout(3000)})).json();if(c.generation!==generation){generation=c.generation;run=c.run;yaw=pitch=dxTotal=dyTotal=0;primary=null;events=[];frames=[];history=[];touches.clear();record('reset')}}catch{}finally{controlling=false}
+}
+setInterval(control,150);control();
+async function report(){
+  if(reporting || generation<0 || document.visibilityState!=='visible')return;reporting=true;
+  const ec=events.length,fc=frames.length;
+  const payload={generation,state:{run,width,height,dpr:devicePixelRatio,n:touches.size,primary,yaw:yaw*180/Math.PI,pitch:pitch*180/Math.PI,dxTotal,dyTotal},events:events.slice(0,ec),frames:frames.slice(0,fc)};
+  try{const response=await fetch('/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(3000)});await response.text();if(response.ok && generation===payload.generation){events.splice(0,ec);frames.splice(0,fc)}}catch{}finally{reporting=false}
+}
+setInterval(report,60);
+function draw(t){
+  frames.push({t,yaw:yaw*180/Math.PI,pitch:pitch*180/Math.PI,dt:t-lastFrame});lastFrame=t;
+  history.push(yaw);if(history.length>240)history.shift();
+  ctx.fillStyle='#08111c';ctx.fillRect(0,0,width,height);
+  const cy=height/2+pitch*height*.6,focal=height*.9;
+  ctx.fillStyle='#132638';ctx.fillRect(0,Math.max(0,cy),width,height);
+  for(let deg=0;deg<360;deg+=15){const a=Math.atan2(Math.sin(deg*Math.PI/180-yaw),Math.cos(deg*Math.PI/180-yaw));if(Math.abs(a)>1.15)continue;const x=width/2+Math.tan(a)*focal;ctx.strokeStyle='#315471';ctx.beginPath();ctx.moveTo(x,cy-100);ctx.lineTo(x,height);ctx.stroke();ctx.fillStyle='#8db0cc';ctx.fillText(deg+'°',x+4,cy-105)}
+  for(let i=1;i<10;i++){const y=cy+(height-cy)*(i/10)**2;ctx.strokeStyle='#254158';ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke()}
+  ctx.strokeStyle='#80f4c7';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(width/2-13,height/2);ctx.lineTo(width/2+13,height/2);ctx.moveTo(width/2,height/2-13);ctx.lineTo(width/2,height/2+13);ctx.stroke();
+  const gx=width*.6,gy=12,gw=width*.37,gh=65,lo=Math.min(...history),span=Math.max(.1,Math.max(...history)-lo);
+  ctx.fillStyle='#07121dcc';ctx.fillRect(gx,gy,gw,gh);ctx.strokeStyle='#80f4c7';ctx.beginPath();history.forEach((v,i)=>{const x=gx+i/239*gw,y=gy+gh-6-(v-lo)/span*(gh-12);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y)});ctx.stroke();
+  for(const[id,p]of touches){ctx.strokeStyle=p.camera?'#80f4c7':'#ffcb75';ctx.beginPath();ctx.arc(p.x,p.y,14,0,Math.PI*2);ctx.stroke();ctx.fillStyle=ctx.strokeStyle;ctx.fillText('id '+id,p.x+18,p.y)}
+  hud.textContent=`SKPDB 视角接力实验室 · ${run}\nYaw ${(yaw*180/Math.PI).toFixed(2)}°  Pitch ${(pitch*180/Math.PI).toFixed(2)}°\n累计 Δx ${dxTotal.toFixed(1)} px   触点 ${touches.size}   视角指 ${[...touches.values()].filter(p=>p.camera).length}（位移累加）\n${width}×${height} CSS px · DPR ${devicePixelRatio}`;
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+</html>

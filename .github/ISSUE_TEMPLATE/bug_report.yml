@@ -1,0 +1,25 @@
+name: 故障反馈
+description: 报告连接、输入或客户端故障
+body:
+  - type: markdown
+    attributes:
+      value: "请勿提交 Root 密钥、授权链接、设备标识、个人配置或未脱敏日志。"
+  - type: textarea
+    id: versions
+    attributes:
+      label: 环境与版本
+      description: 客户端/模块版本、Android/内核版本、连接方式
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤与现象
+      description: 区分连接不上、连接中断、按住提前 UP、坐标停止；说明预期和实际表现
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 已脱敏的诊断信息
+      description: 可提供触摸 backend、实验保护状态及有关错误文字；不要上传原始私人数据包

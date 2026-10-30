@@ -1,0 +1,46 @@
+<!doctype html><html lang="zh"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>鼠标拖动测试</title><style>
+html,body{height:100%;margin:0;overflow:hidden;touch-action:none;background:#111c2a;color:#def;font:18px monospace}
+#hud{position:fixed;top:16px;left:16px;pointer-events:none;white-space:pre-wrap}
+#dot{position:fixed;width:40px;height:40px;border-radius:50%;background:#5fc;transform:translate(-50%,-50%);pointer-events:none}
+</style><div id="hud">等待测试</div><div id="dot"></div><script>
+let generation=-1,run='',count=0,gestures=[],events=[],live=new Map(),busy=false,dxTotal=0,pointerCount=0;
+const hud=document.querySelector('#hud'),dot=document.querySelector('#dot');
+function pos(t){dot.style.left=t.clientX+'px';dot.style.top=t.clientY+'px'}
+function state(){return {run,n:live.size,count,pointerCount,dxTotal,visible:!document.hidden,dpr:devicePixelRatio,w:innerWidth,h:innerHeight}}
+for(const type of ['pointerdown','pointermove','pointerup','pointercancel'])addEventListener(type,e=>{
+ if(type==='pointerdown')pointerCount++;
+ events.push({type,t:performance.now(),id:e.pointerId,x:e.clientX,y:e.clientY,pressure:e.pressure,buttons:e.buttons,tool:e.pointerType});
+});
+for(const type of ['touchstart','touchmove','touchend','touchcancel'])addEventListener(type,e=>{
+ e.preventDefault();const now=performance.now();
+ for(const t of e.changedTouches){
+  events.push({type,t:now,id:t.identifier,x:t.clientX,y:t.clientY,pressure:t.force,active:e.touches.length});
+  if(type==='touchstart'){live.set(t.identifier,{x:t.clientX,y:t.clientY,lastX:t.clientX,lastY:t.clientY,t:now,lastT:now,moves:0,gaps:[],steps:[]});pos(t)}
+  else if(live.has(t.identifier)){
+   const g=live.get(t.identifier);
+   dxTotal+=t.clientX-g.lastX;
+   if(type==='touchmove'){
+    if(g.moves)g.gaps.push(now-g.lastT);
+    g.steps.push(Math.hypot(t.clientX-g.lastX,t.clientY-g.lastY));g.lastT=now;g.moves++;
+   }
+   const endStepPx=Math.hypot(t.clientX-g.lastX,t.clientY-g.lastY);
+   g.lastX=t.clientX;g.lastY=t.clientY;pos(t);
+   if(type!=='touchmove'){
+    g.gaps.sort((a,b)=>a-b);
+    gestures.push({x:g.x,y:g.y,endX:g.lastX,endY:g.lastY,endStepPx,dx:g.lastX-g.x,dy:g.lastY-g.y,duration:now-g.t,moves:g.moves,
+     p95GapMs:g.gaps.length?g.gaps[Math.floor((g.gaps.length-1)*.95)]:0,
+     maxGapMs:Math.max(0,...g.gaps),gapsOver80ms:g.gaps.filter(x=>x>80).length,
+     maxStepPx:Math.max(0,...g.steps),cancelled:type==='touchcancel'});live.delete(t.identifier);count++
+   }
+  }
+ }
+ hud.textContent=`鼠标拖动测试\n${run}\n完成 ${count} · 按住 ${live.size}`;
+},{passive:false});
+setInterval(async()=>{if(busy||document.hidden)return;busy=true;let sent=[],sentEvents=[];try{
+ const c=await(await fetch('/control',{cache:'no-store'})).json();
+ if(c.generation!==generation){generation=c.generation;run=c.run;count=0;pointerCount=0;dxTotal=0;gestures=[];events=[];live.clear()}
+ sent=gestures.splice(0);sentEvents=events.splice(0);await fetch('/report',{method:'POST',body:JSON.stringify({generation,state:state(),gestures:sent,events:sentEvents})});
+}catch{gestures.unshift(...sent);events.unshift(...sentEvents)}finally{busy=false}},80);
+</script></html>

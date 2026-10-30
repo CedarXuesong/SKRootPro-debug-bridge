@@ -1,0 +1,29 @@
+name: Source and offline regressions
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  native-and-publication:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.12'
+      - run: python tools/check_repository.py
+      - run: g++ -std=c++17 -O2 skpdb_probe/tests/touch_guard_test.cpp skpdb_probe/src/input/touch_guard_payload.cpp -o /tmp/touch_guard_test
+      - run: /tmp/touch_guard_test
+      - run: python skpdb_probe/tests/test_deploy_tcp.py
+      - run: pip install numpy
+      - run: python skpdb_probe/tests/test_lab.py
+  desktop-logic:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.12'
+      - run: python tools/run_regressions.py

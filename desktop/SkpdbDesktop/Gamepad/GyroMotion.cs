@@ -1,0 +1,22 @@
+namespace SkpdbDesktop;
+
+public sealed record GyroSession(uint Stream, int TargetUid, string Writer, string SensorTypes, bool DirectChannel);
+
+/// <summary>Maps angular increments to device-space rates, preserving both axes and rotation.</summary>
+public sealed class GyroMotion
+{
+    private double _x, _y;
+    public void Reset() => _x = _y = 0;
+    public (double X,double Y,double Z) Step(double dx,double dy,double seconds,double sensitivity,
+        int rotation,bool invertY,double smoothing)
+    {
+        if(!double.IsFinite(seconds)||seconds<=0||!double.IsFinite(dx)||!double.IsFinite(dy))return (0,0,0);
+        var alpha=1-Math.Pow(Math.Clamp(smoothing,0,.95),seconds*240);
+        _x+=(Math.Clamp(dx*sensitivity/seconds,-15,15)-_x)*alpha;
+        _y+=(Math.Clamp(dy*sensitivity*(invertY?-1:1)/seconds,-15,15)-_y)*alpha;
+        // Landscape screen axes rotate with the logical display; device axes do not.
+        var pitch=-_y;var yaw=-_x;
+        return (rotation switch {1=>-yaw,2=>-pitch,3=>yaw,_=>pitch},
+            rotation switch {1=>pitch,2=>-yaw,3=>-pitch,_=>yaw},0);
+    }
+}

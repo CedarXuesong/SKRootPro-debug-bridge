@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="skpdb-csrf" content="__SKPDB_CSRF__"><title>SKPDB</title><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head>
+<body><main><header><div class="brand"><span class="logo">S</span><div><h1>SKPDB <span class="badge">测试版</span></h1></div></div><span id="connection" class="pill">连接中</span></header>
+<section id="connection-error" class="card narrow" hidden><h2>连接已结束</h2><p id="error-message" role="status"></p></section>
+<div id="workspace"><nav aria-label="页面"><button data-tab="overview" aria-selected="true">总览</button><button data-tab="diagnostics" aria-selected="false">诊断</button><button data-tab="tools" aria-selected="false">工具</button><button data-tab="settings" aria-selected="false">设置</button></nav>
+<p id="global-status" role="status" class="status"></p>
+<div id="overview" class="tab"><div class="section-heading"><h2>总览</h2><button id="refresh" class="quiet">刷新</button></div>
+<div class="metrics"><article class="card"><span>版本</span><strong id="version">—</strong><small id="uptime">—</small></article><article class="card"><span>会话</span><strong id="sessions">—</strong><small id="listen-state">—</small></article><article class="card"><span>UDP 已应用</span><strong id="fast-ok">—</strong><small id="fast-mode">—</small></article><article class="card"><span>调试层</span><strong id="hud-state">—</strong><small>独立于光标</small></article></div>
+<div class="columns"><section class="card"><h3>模块</h3><dl id="module-info"></dl></section><section class="card"><h3>网络</h3><dl id="transport-info"></dl></section><section class="card"><h3>显示</h3><dl id="overlay-info"></dl></section></div>
+<p id="updated" class="muted">—</p></div>
+<div id="diagnostics" class="tab" hidden><div class="section-heading"><h2>诊断</h2><button id="run-diagnostics" class="primary">运行诊断</button></div>
+<p id="diagnostic-status" role="status"></p>
+<div id="diagnostic-results" class="columns"><section class="card empty">尚未运行诊断。</section></div>
+<div class="actions"><button id="copy-report" class="quiet" disabled>复制报告</button><button id="download-report" class="quiet" disabled>下载报告</button></div></div>
+<div id="tools" class="tab" hidden><div class="section-heading"><h2>工具</h2><button id="ping" class="quiet">延迟测试</button></div>
+<p id="ping-status" role="status"></p>
+<div class="columns"><section class="card"><h3>命令</h3><form id="exec-form"><label for="command">命令</label><textarea id="command" rows="3" maxlength="8192" placeholder="uname -a" required></textarea><button id="exec-button" class="primary">执行</button></form><pre id="exec-output" tabindex="0">—</pre></section>
+<section class="card"><h3>文件</h3><form id="files-form"><label for="file-path">路径</label><div class="input-row"><input id="file-path" value="/data/local/tmp" required><button id="list-button">打开</button></div></form><p id="file-status" role="status"></p><div id="file-list" class="file-list"></div><pre id="file-content" tabindex="0">—</pre></section></div></div>
+<div id="settings" class="tab" hidden><div class="section-heading"><h2>设置</h2></div>
+<section class="card"><form id="settings-form">
+<div class="form-grid"><div><label for="service_port">TCP 端口</label><input id="service_port" type="number" min="1024" max="65535" step="1" required></div><div><label for="knock_port">UDP knock 端口</label><input id="knock_port" type="number" min="1024" max="65535" step="1" required></div><div><label for="idle_timeout_seconds">空闲关闭（秒，0 为不关闭）</label><input id="idle_timeout_seconds" type="number" min="0" max="3600" step="1" required></div><div><label for="auth_window_seconds">签名容差（秒）</label><input id="auth_window_seconds" type="number" min="5" max="300" step="1" required></div></div>
+<label class="check"><input id="always_listen" type="checkbox">始终监听 TCP</label>
+<p id="dirty-status" class="muted">—</p>
+<div class="actions"><button id="save-settings" class="primary">保存</button><button id="reset-settings" type="button" class="quiet">还原</button></div>
+</form><p id="settings-status" role="status"></p></section>
+<section class="card"><button id="stop-webui" class="danger">关闭 WebUI</button></section></div>
+</div><footer><span>SKPDB</span><span id="footer-state"></span></footer></main></body></html>

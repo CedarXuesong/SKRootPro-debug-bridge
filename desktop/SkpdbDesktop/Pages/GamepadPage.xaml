@@ -1,0 +1,505 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="SkpdbDesktop.GamepadPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SkpdbDesktop"
+    NavigationCacheMode="Required"
+    KeyDown="Page_KeyDown"
+    KeyUp="Page_KeyUp">
+
+    <Grid x:Name="PageRoot"
+          Padding="24,12,20,12" RowSpacing="10"
+          HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="12" MinWidth="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="0" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="游戏外设" Style="{StaticResource PageTitleStyle}" />
+                <TextBlock x:Name="SubtitleText"
+                           Text=""
+                           Style="{StaticResource PageSubtitleStyle}"
+                           TextWrapping="NoWrap"
+                           TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="12,6"
+                    VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Ellipse x:Name="ConnectionDot" Width="8" Height="8"
+                             Fill="{ThemeResource SystemFillColorNeutralBrush}"
+                             VerticalAlignment="Center" />
+                    <TextBlock x:Name="ForegroundText" Text="前台：—"
+                               Style="{StaticResource MetricLabelStyle}" />
+                </StackPanel>
+            </Border>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                        VerticalAlignment="Center">
+                <ToggleButton x:Name="ProfilesToggle" Content="配置列表" Visibility="Collapsed"
+                              Checked="ProfilesToggle_Changed" Unchecked="ProfilesToggle_Changed"
+                              ToolTipService.ToolTip="展开或收起配置列表，为画布保留更多空间" />
+                <Button x:Name="UndoButton" Width="36" Height="32" Padding="0"
+                        Visibility="Collapsed" Click="UndoButton_Click"
+                        ToolTipService.ToolTip="撤销 (Ctrl+Z)">
+                    <FontIcon Glyph="&#xE7A7;" FontSize="14" />
+                </Button>
+                <Button x:Name="RedoButton" Width="36" Height="32" Padding="0"
+                        Visibility="Collapsed" Click="RedoButton_Click"
+                        ToolTipService.ToolTip="重做 (Ctrl+Y)">
+                    <FontIcon Glyph="&#xE7A6;" FontSize="14" />
+                </Button>
+                <Button x:Name="EditModeButton" Content="编辑布局"
+                        Click="EditModeButton_Click"
+                        ToolTipService.ToolTip="编辑模式中右键画布添加按键 (Ctrl+E)" />
+                <Button x:Name="StartButton" Content="开始操控"
+                        Style="{StaticResource AccentButtonStyle}"
+                        MinWidth="120" Click="StartButton_Click" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnSpacing="12" MinWidth="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="ProfileColumn" Width="200" />
+                <ColumnDefinition x:Name="CanvasColumn" Width="*" MinWidth="0" />
+                <ColumnDefinition x:Name="InspectorColumn" Width="272" />
+            </Grid.ColumnDefinitions>
+
+            <Border x:Name="ProfilePanel" Grid.Column="0" Style="{StaticResource CardStyle}"
+                    Padding="10">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="配置文件" FontWeight="SemiBold" />
+                            <TextBlock Text="按前台应用保存"
+                                       Style="{StaticResource MetricLabelStyle}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="+" Width="32" Height="32"
+                                Padding="0" Click="AddProfile_Click"
+                                ToolTipService.ToolTip="新建配置" />
+                    </Grid>
+
+                    <ListView x:Name="ProfileList" Grid.Row="1"
+                              SelectionMode="Single" MinHeight="120"
+                              SelectionChanged="ProfileList_SelectionChanged">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:GamepadProfile">
+                                <StackPanel Spacing="2" Padding="0,4">
+                                    <TextBlock Text="{x:Bind DisplayName}" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{x:Bind Package}"
+                                               Style="{StaticResource MetricLabelStyle}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <StackPanel Grid.Row="2" Spacing="6">
+                        <TextBox x:Name="PackageBox" Header="包名"
+                                 PlaceholderText="com.example.game" />
+                        <TextBox x:Name="ProfileNameBox" Header="显示名称" />
+                        <Grid ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button Content="复制" HorizontalAlignment="Stretch"
+                                    Click="DuplicateProfile_Click" />
+                            <Button Grid.Column="1" Content="删除" HorizontalAlignment="Stretch"
+                                    Click="DeleteProfile_Click" />
+                        </Grid>
+                        <Button Content="应用当前布局" HorizontalAlignment="Stretch"
+                                Click="SaveProfile_Click" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="12">
+                <Grid>
+                    <Border x:Name="InputSurface" IsTabStop="True"
+                            Background="Transparent"
+                            Margin="0,90,0,50"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                            AutomationProperties.Name="布局画布"
+                            SizeChanged="InputSurface_SizeChanged"
+                            KeyDown="Page_KeyDown" KeyUp="Page_KeyUp">
+                        <Grid>
+                        <Canvas x:Name="LayoutCanvas"
+                                Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                MinWidth="0" MinHeight="0"
+                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                PointerPressed="LayoutCanvas_PointerPressed"
+                                PointerMoved="LayoutCanvas_PointerMoved"
+                                PointerReleased="LayoutCanvas_PointerReleased"
+                                PointerCanceled="PreviewPointerCanceled"
+                                PointerCaptureLost="PreviewPointerCaptureLost"
+                                SizeChanged="LayoutCanvas_SizeChanged" />
+                        <local:TouchTraceView x:Name="CanvasTraceView" IsHitTestVisible="False" />
+                        <Canvas x:Name="PreviewWatermarkLayer" IsHitTestVisible="False">
+                            <Grid x:Name="PreviewWatermarkBounds" IsHitTestVisible="False">
+                                <Grid.Clip><RectangleGeometry x:Name="PreviewWatermarkClip" /></Grid.Clip>
+                                <TextBlock x:Name="PreviewWatermark" Text="SKPDB · 测试版" FontWeight="SemiBold"
+                                           Foreground="White" Opacity="0.18" IsHitTestVisible="False"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           RenderTransformOrigin="0.5,0.5">
+                                    <TextBlock.RenderTransform><RotateTransform Angle="-24" /></TextBlock.RenderTransform>
+                                </TextBlock>
+                            </Grid>
+                        </Canvas>
+                        </Grid>
+                    </Border>
+
+                    <Grid VerticalAlignment="Top" Height="44" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="0" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="ProfileTitle" Text="全局默认"
+                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="ProfilePackage" Text="__default__"
+                                       Style="{StaticResource MetricLabelStyle}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right"
+                                    VerticalAlignment="Center">
+                            <Border x:Name="ModeBadge" Visibility="Collapsed"
+                                    Padding="8,2" CornerRadius="10"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                    HorizontalAlignment="Right">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="6" Height="6" Fill="White"
+                                             VerticalAlignment="Center" />
+                                    <TextBlock x:Name="ModeBadgeText" Text="鼠标模式"
+                                               FontSize="11" Foreground="White" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock x:Name="TouchInfoText" Text="—"
+                                       Style="{StaticResource MetricLabelStyle}"
+                                       MaxWidth="150" HorizontalAlignment="Right"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid VerticalAlignment="Top" Margin="0,48,0,0" Height="32" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" MinWidth="0" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="CaptureSnapshotButton" Content="获取快照" IsEnabled="False"
+                                Click="CaptureSnapshot_Click" Padding="10,4"
+                                ToolTipService.ToolTip="获取手机当前屏幕作为画布背景；图片仅保存在内存中" />
+                        <Button Grid.Column="1" Content="···" Padding="10,4"
+                                AutomationProperties.Name="快照选项" ToolTipService.ToolTip="显示或清除快照">
+                            <Button.Flyout>
+                                <MenuFlyout>
+                                    <ToggleMenuFlyoutItem x:Name="SnapshotVisibleToggle" Text="显示快照"
+                                                         IsChecked="True" IsEnabled="False" Click="SnapshotVisible_Changed" />
+                                    <MenuFlyoutItem x:Name="ClearSnapshotButton" Text="清除快照" IsEnabled="False"
+                                                    Click="ClearSnapshot_Click" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <TextBlock x:Name="SnapshotStatusText" Grid.Column="2" Text="未获取快照"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   Style="{StaticResource MetricLabelStyle}" />
+                    </Grid>
+
+                    <Grid VerticalAlignment="Bottom" Height="44" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="0" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="HintText"
+                                   Text=""
+                                   Style="{StaticResource MetricLabelStyle}"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   TextTrimming="CharacterEllipsis" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                        <CheckBox x:Name="PreviewAutoToggle" Content="自动演示" Visibility="Collapsed"
+                                  Checked="PreviewAuto_Changed" Unchecked="PreviewAuto_Changed" />
+                        <CheckBox x:Name="PreviewLandscapeToggle" Content="横屏" Visibility="Collapsed"
+                                  Checked="PreviewOrientation_Changed" Unchecked="PreviewOrientation_Changed" />
+                        <CheckBox x:Name="TraceToggle" Content="显示轨迹" IsChecked="True"
+                                  Checked="TraceToggle_Changed" Unchecked="TraceToggle_Changed"
+                                  ToolTipService.ToolTip="直接在画布中叠加触点、采样轨迹和视角接力" />
+                        <Button x:Name="ResetLayoutButton" Content="恢复默认"
+                                VerticalAlignment="Center"
+                                Click="ResetLayout_Click"
+                                ToolTipService.ToolTip="把当前配置文件恢复为默认布局" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Border x:Name="PlayModeBanner" Visibility="Collapsed"
+                            HorizontalAlignment="Center" VerticalAlignment="Top"
+                            Margin="0,88,0,0" Padding="12,6" CornerRadius="8"
+                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                            IsHitTestVisible="False">
+                        <TextBlock x:Name="PlayModeBannerText"
+                                   Text="视角模式"
+                                   FontSize="12" Foreground="White" />
+                    </Border>
+                    <StackPanel x:Name="EmptyHint" Visibility="Collapsed"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Spacing="6" IsHitTestVisible="False">
+                        <FontIcon Glyph="&#xE710;" FontSize="22"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                  HorizontalAlignment="Center" />
+                        <TextBlock Text="右键空白处添加按键"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border x:Name="InspectorPanel" Grid.Column="2" Style="{StaticResource CardStyle}"
+                    Padding="12">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="10">
+                        <ComboBox x:Name="ElementPicker" Header="选择组件" PlaceholderText="点击画布或从这里选择"
+                                  HorizontalAlignment="Stretch" DisplayMemberPath="Label"
+                                  SelectionChanged="ElementPicker_SelectionChanged" />
+                        <TextBlock x:Name="SelectedElementText" Text="未选中"
+                                   Style="{StaticResource MetricLabelStyle}" />
+                        <TextBlock x:Name="InspectorHint"
+                                   Text=""
+                                   Style="{StaticResource MetricLabelStyle}"
+                                   TextWrapping="Wrap" />
+
+                        <Grid x:Name="BasicFields" ColumnSpacing="8" RowSpacing="8"
+                              Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <NumberBox x:Name="XBox" Header="水平位置" Minimum="0" Maximum="1"
+                                       ToolTipService.ToolTip="0 为屏幕左边，1 为右边"
+                                       SmallChange="0.005" SpinButtonPlacementMode="Compact" />
+                            <NumberBox x:Name="YBox" Grid.Column="1" Header="垂直位置" Minimum="0"
+                                       ToolTipService.ToolTip="0 为屏幕顶部，1 为底部"
+                                       Maximum="1" SmallChange="0.005"
+                                       SpinButtonPlacementMode="Compact" />
+                            <NumberBox x:Name="RadiusBox" Grid.Row="1" Header="半径"
+                                       Minimum="0.01" Maximum="0.4" SmallChange="0.005"
+                                       SpinButtonPlacementMode="Compact" />
+                            <NumberBox x:Name="SlotBox" Grid.Row="1" Grid.Column="1" Header="逻辑编号（自动）"
+                                       IsEnabled="False" Visibility="Collapsed" Minimum="0" Maximum="65533" SpinButtonPlacementMode="Compact" />
+                        </Grid>
+
+                        <StackPanel x:Name="MoveFields" Spacing="8" Visibility="Collapsed">
+                            <TextBlock Text="移动轮盘" FontWeight="SemiBold" Margin="0,4,0,0" />
+                            <NumberBox x:Name="DeadzoneBox" Header="死区"
+                                       Minimum="0" Maximum="0.8" SmallChange="0.01"
+                                       SpinButtonPlacementMode="Compact" />
+                            <ToggleSwitch x:Name="Snap8Toggle" Header="八方向吸附"
+                                          OnContent="开" OffContent="关" />
+                            <NumberBox x:Name="MoveResponseBox" Header="转向过渡 ms" Minimum="40" Maximum="300"
+                                       SmallChange="10" SpinButtonPlacementMode="Compact" />
+                            <Expander Header="轨迹与随机性" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <StackPanel Spacing="8">
+                            <Slider x:Name="MoveStartBox" Header="首次落点范围 / 半径" Minimum="0" Maximum="0.95" StepFrequency="0.01" />
+                            <Slider x:Name="MoveTargetBox" Header="终点内外偏移 / 半径" Minimum="0" Maximum="0.20" StepFrequency="0.005" />
+                            <Slider x:Name="MoveAngularBox" Header="方向角偏移 / 弧度" Minimum="0" Maximum="0.35" StepFrequency="0.005" />
+                            <Slider x:Name="MoveCurveBox" Header="直线路径随机弧度" Minimum="0" Maximum="0.40" StepFrequency="0.005" />
+                            <Slider x:Name="MoveDistortionBox" Header="路径扭曲幅度" Minimum="0" Maximum="0.15" StepFrequency="0.005" />
+                            <Slider x:Name="MoveSwayBox" Header="持续按住时轻摆 / 半径" Minimum="0" Maximum="0.08" StepFrequency="0.002" />
+                            </StackPanel>
+                            </Expander>
+                            <TextBlock Text="Shift 疾跑圈（橙色外圈）" FontWeight="SemiBold" />
+                            <Slider x:Name="SprintExtraBox" Header="疾跑额外半径比例" Minimum="0" Maximum="1" StepFrequency="0.01" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="LookFields" Spacing="8" Visibility="Collapsed">
+                            <TextBlock Text="视角区域" FontWeight="SemiBold" Margin="0,4,0,0" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <NumberBox x:Name="LookWidthBox" Header="宽度 px" Minimum="20" Maximum="12000" SmallChange="10" SpinButtonPlacementMode="Compact" />
+                            <NumberBox x:Name="LookRadiusYBox" Grid.Column="1" Header="高度 px"
+                                       Minimum="20" Maximum="12000" SmallChange="10"
+                                       SpinButtonPlacementMode="Compact" />
+                            </Grid>
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <NumberBox x:Name="SensitivityBox" Header="视角灵敏度"
+                                       Minimum="0.1" Maximum="12" SmallChange="0.1"
+                                       SpinButtonPlacementMode="Compact" />
+                            <NumberBox x:Name="SmoothingBox" Grid.Column="1" Header="平滑"
+                                       Minimum="0" Maximum="0.95" SmallChange="0.05"
+                                       SpinButtonPlacementMode="Compact" />
+                            </Grid>
+                            <ToggleSwitch x:Name="InvertYToggle" Header="反转 Y"
+                                          OnContent="是" OffContent="否" />
+                            <ComboBox x:Name="RecenterBox" Header="回中方式"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBoxItem Content="停止后回中" Tag="onIdle" />
+                                <ComboBoxItem Content="到达边缘回中" Tag="edge" />
+                                <ComboBoxItem Content="不回中" Tag="never" />
+                            </ComboBox>
+                            <Expander Header="接力与回中参数" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <StackPanel Spacing="8">
+                            <NumberBox x:Name="RecenterDelayBox" Header="回中延迟 ms"
+                                       Minimum="20" Maximum="1000" SmallChange="10"
+                                       SpinButtonPlacementMode="Compact" />
+                            <NumberBox x:Name="RelayOverlapBox" Header="双指重叠 ms"
+                                       Minimum="40" Maximum="600" SmallChange="10"
+                                       ToolTipService.ToolTip="重叠期间两指平滑分担位移，合计速度不变；时长上下浮动 20%，遇到边界可提前交接。停止操控时立即抬指。"
+                                       SpinButtonPlacementMode="Compact" />
+                            <NumberBox x:Name="RelayStartJitterBox" Header="起点浮动（区域比例）"
+                                       Minimum="0" Maximum="0.25" SmallChange="0.01"
+                                       ToolTipService.ToolTip="只在区域内部改变落点；不向鼠标位移添加随机噪声。"
+                                       SpinButtonPlacementMode="Compact" />
+                            <NumberBox x:Name="RelayEarlyEndBox" Header="提前换指（区域比例）"
+                                       Minimum="0" Maximum="0.30" SmallChange="0.01"
+                                       ToolTipService.ToolTip="在边界前预留变化的距离，结合鼠标速度提前交接。"
+                                       SpinButtonPlacementMode="Compact" />
+                            </StackPanel>
+                            </Expander>
+                        </StackPanel>
+
+                        <StackPanel x:Name="ButtonFields" Spacing="8" Visibility="Collapsed">
+                            <TextBlock Text="按键" FontWeight="SemiBold" Margin="0,4,0,0" />
+                            <TextBox x:Name="LabelBox" Header="名称" MaxLength="12" />
+                            <ComboBox x:Name="KindBox" Header="按键类型"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="KindBox_SelectionChanged" />
+                            <TextBlock Text="按键绑定" Style="{StaticResource FieldLabelStyle}" />
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="BindingBox"
+                                         PlaceholderText="W / Space / MouseLeft" />
+                                <Button x:Name="CaptureBindingButton" Grid.Column="1"
+                                        Content="捕获" Click="CaptureBindingButton_Click"
+                                        ToolTipService.ToolTip="点击后按键盘键或鼠标键" />
+                            </Grid>
+                            <TextBlock x:Name="CaptureHintText"
+                                       Text="请按下要绑定的键盘键或鼠标键，Esc 取消。"
+                                       Style="{StaticResource MetricLabelStyle}"
+                                       TextWrapping="Wrap" Visibility="Collapsed" />
+
+                            <StackPanel x:Name="ButtonModeFields" Spacing="6"
+                                        Visibility="Collapsed">
+                                <TextBlock Text="按钮模式" Style="{StaticResource FieldLabelStyle}" />
+                                <ComboBox x:Name="ButtonModeBox" HorizontalAlignment="Stretch" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="IntervalFields" Spacing="6" Visibility="Collapsed">
+                                <NumberBox x:Name="TapIntervalBox" Header="连发间隔 ms"
+                                           Minimum="16" Maximum="2000" SmallChange="10"
+                                           SpinButtonPlacementMode="Compact" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="GestureFields" Spacing="8"
+                                        Visibility="Collapsed">
+                                <NumberBox x:Name="DirectionXBox" Header="方向 X"
+                                           Minimum="-1" Maximum="1" SmallChange="0.05"
+                                           SpinButtonPlacementMode="Compact" />
+                                <NumberBox x:Name="DirectionYBox" Header="方向 Y"
+                                           Minimum="-1" Maximum="1" SmallChange="0.05"
+                                           SpinButtonPlacementMode="Compact" />
+                                <NumberBox x:Name="DistanceBox" Header="距离"
+                                           Minimum="0.02" Maximum="0.5" SmallChange="0.01"
+                                           SpinButtonPlacementMode="Compact" />
+                                <NumberBox x:Name="DurationBox" Header="时长 ms"
+                                           Minimum="30" Maximum="1000" SmallChange="10"
+                                           SpinButtonPlacementMode="Compact" />
+                                <NumberBox x:Name="AmountBox" Header="滚动/缩放幅度"
+                                           Minimum="0.02" Maximum="0.5" SmallChange="0.01"
+                                           SpinButtonPlacementMode="Compact" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Button x:Name="ApplyButton" Content="保存并刷新属性"
+                                HorizontalAlignment="Stretch"
+                                Click="ApplySelected_Click" />
+                        <Grid ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="DuplicateElementButton" Content="复制选中"
+                                    HorizontalAlignment="Stretch"
+                                    Click="DuplicateElement_Click" />
+                            <Button x:Name="DeleteElementButton" Grid.Column="1" Content="删除选中"
+                                    HorizontalAlignment="Stretch"
+                                    Click="DeleteElement_Click" />
+                        </Grid>
+                        <Button Content="添加轮盘" HorizontalAlignment="Stretch" Click="AddMove_Click" />
+                        <Button Content="添加视角区域" HorizontalAlignment="Stretch" Click="AddLook_Click" />
+                        <Button Content="添加按键…" HorizontalAlignment="Stretch"
+                                Click="AddControlButton_Click" />
+
+                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                Margin="0,6" />
+                        <StackPanel x:Name="LayerFields" Spacing="4">
+                            <TextBlock Text="图层" FontWeight="SemiBold" />
+                            <ToggleSwitch x:Name="MoveVisibleToggle" Header="移动轮盘"
+                                          OnContent="显示" OffContent="隐藏"
+                                          Toggled="LayerToggle_Toggled" />
+                            <ToggleSwitch x:Name="LookVisibleToggle" Header="视角区域"
+                                          OnContent="显示" OffContent="隐藏"
+                                          Toggled="LayerToggle_Toggled" />
+                        </StackPanel>
+
+                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                Margin="0,6" />
+                        <TextBlock Text="光标叠加" FontWeight="SemiBold" />
+                        <ToggleSwitch x:Name="CursorToggle" Header="启用内核光标"
+                                      OnContent="开" OffContent="关"
+                                      Toggled="CursorToggle_Toggled" />
+                        <Button Content="应用光标设置" HorizontalAlignment="Stretch"
+                                Click="ApplyCursor_Click" />
+                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                Margin="0,6" />
+                        <TextBlock Text="陀螺仪注入" FontWeight="SemiBold" />
+                        <ToggleSwitch x:Name="GyroToggle" Header="当前应用陀螺仪"
+                                      OnContent="开" OffContent="关"
+                                      Toggled="GyroToggle_Toggled" />
+                        <TextBlock Text="按应用 UID 隔离；支持普通事件队列。Direct Channel 尚未覆盖。" TextWrapping="Wrap" Style="{StaticResource MetricLabelStyle}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" Style="{StaticResource CardStyle}" Padding="12,8">
+            <Grid ColumnSpacing="12" MinWidth="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="0" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="StatusText" Text="请先在主页连接设备。"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="RttText" Grid.Column="1" Text="触点 — · RTT —"
+                           FontFamily="Cascadia Mono"
+                           Style="{StaticResource MetricLabelStyle}"
+                           VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+    </Grid>
+</Page>
