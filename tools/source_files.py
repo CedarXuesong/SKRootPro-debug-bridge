@@ -7,7 +7,7 @@ ROOT_FILES = {"README.md", "LICENSE", "CONTRIBUTING.md", "SECURITY.md", "CHANGEL
 ROOTS = {"desktop", "host", "skpdb_probe", "docs", "tools", ".github"}
 SUFFIXES = {".cs", ".csproj", ".xaml", ".manifest", ".sln", ".props", ".targets",
             ".cpp", ".h", ".java", ".py", ".ps1", ".js", ".cjs", ".html", ".css",
-            ".mk", ".ld", ".config", ".md", ".txt", ".json", ".yml", ".yaml"}
+            ".mk", ".ld", ".config", ".xml", ".md", ".txt", ".json", ".yml", ".yaml"}
 EXCLUDED_PARTS = {"bin", "obj", "build", "libs", "libs-experimental", "data", "__pycache__", "screenshots",
                   "node_modules", ".vs", ".idea"}
 GENERATED = {"cursor_dex.h", "gyro_payload_bytes.h", "touch_guard_bytes.h", "webui_assets.h"}
