@@ -2,6 +2,7 @@
 #include "input/touch_guard_bytes.h"
 #include "input/touch_guard_payload.h"
 #include <cstring>
+#include <linux/input.h>
 #include <ctime>
 #include <kernel_module_kit_umbrella.h>
 #include <unistd.h>
@@ -63,7 +64,8 @@ std::vector<uint8_t> InjectScope(uint64_t device, uint32_t handle_dev) {
             a->bind(again);
             a->ldaxr(x10, ptr(x9));
             a->cbnz(x10, busy);
-            a->stlxr(w10, x19, ptr(x9));
+            // This SDK's AsmJit requires matching operand widths; the encoded status is W10.
+            a->stlxr(x10, x19, ptr(x9));
             auto acquired = a->newLabel();
             a->cbz(w10, acquired);
             a->sub(w11, w11, 1);
@@ -209,7 +211,7 @@ bool TouchGuardInstall(uint64_t device, std::string &error) {
         a->str(w9, ptr(x19, offsetof(touch_guard::Event, slot)));
         a->mov(w10, slot_size);
         a->umaddl(x10, w9, w10, x8);
-        a->ldr(w10, ptr(x10, mt_slots + slot_abs + (57 - 47) * 4));
+        a->ldr(w10, ptr(x10, mt_slots + slot_abs + (ABS_MT_TRACKING_ID - ABS_MT_TOUCH_MAJOR) * sizeof(int32_t)));
         a->str(w10, ptr(x19, offsetof(touch_guard::Event, tracking)));
         a->mov(w10, 0);
         a->mov(w11, 0);
@@ -219,7 +221,7 @@ bool TouchGuardInstall(uint64_t device, std::string &error) {
         a->b(CondCode::kHS, counted);
         a->mov(w12, slot_size);
         a->umaddl(x12, w11, w12, x8);
-        a->ldr(w12, ptr(x12, mt_slots + slot_abs + (57 - 47) * 4));
+        a->ldr(w12, ptr(x12, mt_slots + slot_abs + (ABS_MT_TRACKING_ID - ABS_MT_TOUCH_MAJOR) * sizeof(int32_t)));
         a->cmp(w12, 0);
         a->cinc(w10, w10, CondCode::kGE);
         a->add(w11, w11, 1);
