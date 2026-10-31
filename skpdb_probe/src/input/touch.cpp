@@ -692,7 +692,9 @@ TouchResult TouchDiagnostics() {
     std::lock_guard<std::mutex> guard(TouchMutex());
     std::string error;
     if (!EnsureReadyLocked(error)) {
-        return Failure(error);
+        auto result = Failure(error);
+        result.report = TouchGuardReport();
+        return result;
     }
     return Success(ReportLocked());
 }

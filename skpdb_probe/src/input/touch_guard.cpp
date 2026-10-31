@@ -1,5 +1,6 @@
 #include "input/touch_guard.h"
 #include "input/touch_guard_bytes.h"
+#include "input/touch_guard_hook.h"
 #include "input/touch_guard_payload.h"
 #include <cstring>
 #include <linux/input.h>
@@ -13,12 +14,55 @@ namespace {
 using namespace asmjit::a64;
 using namespace asmjit::a64::Predicate;
 using namespace kernel_module;
-HookHandle g_hook = nullptr, g_inject = nullptr;
+touch_guard::RestorableHook<HookHandle> g_hook, g_inject;
+struct HookBackend {
+    bool Read(uint64_t address, std::array<uint32_t, 2> &words, std::string &error) {
+        const auto rc = read_kernel_mem(address, words.data(), sizeof(words));
+        if (is_ok(rc))
+            return true;
+        error = "hook entry read failed: " + to_string(rc);
+        return false;
+    }
+    bool Install(uint64_t address, const std::vector<uint8_t> &code, HookHandle &handle,
+                 std::string &error) {
+        const auto rc = install_kernel_function_before_hook(address, code, &handle);
+        if (is_ok(rc))
+            return true;
+        error = "hook installation failed: " + to_string(rc);
+        return false;
+    }
+    bool Disable(HookHandle handle, std::string &error) {
+        const auto rc = uninstall_kernel_hook(handle);
+        if (is_ok(rc))
+            return true;
+        error = "hook callback disable failed: " + to_string(rc);
+        return false;
+    }
+    bool WriteInstruction(uint64_t address, uint32_t word, std::string &error) {
+        // KMP_X uses the SDK's instruction patching/cache synchronization path.
+        // The RW atomic writer must never be used for kernel text.
+        const auto rc = write_kernel_mem(address, &word, sizeof(word), KernMemProt::KMP_X);
+        if (is_ok(rc))
+            return true;
+        error = "hook entry restore failed: " + to_string(rc);
+        return false;
+    }
+} g_hook_backend;
 #ifndef SKPDB_EXPERIMENTAL_TOUCH_GUARD
 #define SKPDB_EXPERIMENTAL_TOUCH_GUARD 0
 #endif
 uint64_t g_state = 0, g_device = 0, g_renewed = 0;
+bool g_removing = false;
 std::string g_error;
+bool Rollback(std::string reason, std::string &error) {
+    std::string cleanup;
+    const bool removed = TouchGuardRemove(cleanup);
+    error = reason;
+    if (!removed)
+        error += "; cleanup: " + cleanup;
+    g_error = error;
+    return false;
+}
 uint64_t Now() {
     timespec t{};
     clock_gettime(CLOCK_MONOTONIC, &t);
@@ -94,7 +138,7 @@ std::vector<uint8_t> InjectScope(uint64_t device, uint32_t handle_dev) {
 bool TouchGuardRenew(std::string &error) {
     if (!SKPDB_EXPERIMENTAL_TOUCH_GUARD)
         return true;
-    if (!g_hook || !g_state) {
+    if (g_removing || !g_hook.Active() || !g_inject.Active() || !g_state) {
         error = "touch guard is not installed";
         return false;
     }
@@ -114,11 +158,15 @@ bool TouchGuardRenew(std::string &error) {
 bool TouchGuardInstall(uint64_t device, std::string &error) {
     if (!SKPDB_EXPERIMENTAL_TOUCH_GUARD)
         return true;
-    if (!g_hook && g_inject) {
-        error = "touch scope hook still needs detachment";
+    if (g_removing) {
+        error = "touch guard still needs entry restoration";
         return false;
     }
-    if (g_hook) {
+    if (g_hook.Pending() || g_inject.Pending()) {
+        if (!g_hook.Active() || !g_inject.Active()) {
+            error = "touch guard hooks still need cleanup";
+            return false;
+        }
         if (device != g_device) {
             error = "touch guard belongs to another input device";
             return false;
@@ -245,69 +293,62 @@ bool TouchGuardInstall(uint64_t device, std::string &error) {
     a->bind(helper);
     a->embed(kTouchGuardPayload, sizeof(kTouchGuardPayload));
     const auto bytes = aarch64_asm_to_bytes(a);
-    auto rc =
-        install_kernel_function_before_hook(inject, InjectScope(device, handle_dev), &g_inject);
-    if (is_ok(rc) && g_inject)
-        rc = install_kernel_function_before_hook(event, bytes, &g_hook);
-    if (is_failed(rc) || !g_hook) {
-        // No hook owns the state when installation reports failure.
-        if (g_inject) {
-            const auto detached = uninstall_kernel_hook(g_inject);
-            if (is_failed(detached)) {
-                error = "touch scope rollback failed: " + to_string(detached);
-                return false;
-            }
-            g_inject = nullptr;
-        }
-        // Retain disabled state if callback grace has not been documented.
-        g_state = 0;
-        g_hook = nullptr;
-        error = "touch guard installation failed: " + to_string(rc);
-        return false;
-    }
+    if (!g_inject.Install(g_hook_backend, inject, InjectScope(device, handle_dev), error))
+        return Rollback("touch scope installation: " + error, error);
+    if (!g_hook.Install(g_hook_backend, event, bytes, error))
+        return Rollback("touch guard installation: " + error, error);
     g_device = device;
     g_renewed = 0;
     g_error.clear();
-    return TouchGuardRenew(error);
+    if (!TouchGuardRenew(error))
+        return Rollback(error, error);
+    return true;
 }
 
 bool TouchGuardRemove(std::string &error) {
-    if (!g_hook && !g_inject)
+    error.clear();
+    if (!g_hook.Pending() && !g_inject.Pending()) {
+        g_removing = false;
+        g_state = g_device = g_renewed = 0;
+        g_error.clear();
         return true;
+    }
+    g_removing = true;
     // Fail open before requesting detachment. Never free memory still owned
     // by a hook when uninstallation fails.
-    const auto disabled = write_kernel_rw_mem_atomic64(g_state, 0);
-    const auto removed = g_hook ? uninstall_kernel_hook(g_hook) : KModErr::OK;
-    if (is_failed(removed)) {
-        error = "touch guard detach failed: " + to_string(removed);
-        g_error = error;
-        return false;
+    if (g_state && is_failed(write_kernel_rw_mem_atomic64(g_state, 0)))
+        error = "touch guard lease disable failed";
+    // Try both removals even if one fails. A retry must retain each unresolved
+    // snapshot and must never renew or re-arm partially removed hooks.
+    std::string detail;
+    if (!g_hook.Remove(g_hook_backend, detail)) {
+        if (!error.empty())
+            error += "; ";
+        error += "touch guard: " + detail;
     }
-    g_hook = nullptr;
-    const auto scope_removed = g_inject ? uninstall_kernel_hook(g_inject) : KModErr::OK;
-    if (is_failed(scope_removed)) {
-        error = "touch scope detach failed: " + to_string(scope_removed);
-        g_error = error;
-        return false;
+    detail.clear();
+    if (!g_inject.Remove(g_hook_backend, detail)) {
+        if (!error.empty())
+            error += "; ";
+        error += "touch scope: " + detail;
     }
-    g_inject = nullptr;
-    g_device = 0;
-    g_renewed = 0;
     // Retain the tiny disabled state. The SDK's API does not
     // document a grace period for an in-flight callback.
-    g_state = 0;
-    if (is_failed(disabled)) {
-        error = "touch guard lease disable failed";
-        return false;
+    if (!g_hook.Pending() && !g_inject.Pending()) {
+        g_state = g_device = g_renewed = 0;
+        g_removing = false;
     }
-    return true;
+    g_error = error;
+    return error.empty();
 }
 std::string TouchGuardReport() {
     touch_guard::State state{};
     const bool read = g_state && is_ok(read_kernel_mem(g_state, &state, sizeof(state)));
-    return std::string("release_guard=") + (g_hook ? "active" : "off") +
+    return std::string("release_guard=") +
+           (g_removing ? "cleanup-pending" : g_hook.Active() ? "active" : "off") +
            "\nrelease_guard_verification=pending-device-retest\n" +
            "release_guard_experimental=" + std::string(SKPDB_EXPERIMENTAL_TOUCH_GUARD ? "1" : "0") +
+           "\nrelease_guard_cleanup_pending=" + (g_removing ? "1" : "0") +
            "\nrelease_guard_blocked=" + std::to_string(read ? state.blocked : 0) +
            "\nrelease_guard_error=" + g_error + "\nvirtual_device=0\n";
 }

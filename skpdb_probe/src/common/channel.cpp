@@ -588,7 +588,10 @@ std::vector<uint8_t> TouchRequest(const std::vector<uint8_t>& request) {
             return ErrorResponse(opcode::kTouch, "unknown touch action");
     }
     if (!result.ok) {
-        return ErrorResponse(opcode::kTouch, result.error.empty() ? "touch failed" : result.error);
+        std::string error = result.error.empty() ? "touch failed" : result.error;
+        if (action == kTouchInfo && !result.report.empty())
+            error += "\n" + result.report;
+        return ErrorResponse(opcode::kTouch, error);
     }
     std::vector<uint8_t> response{opcode::kTouch, 0};
     response.insert(response.end(), result.report.begin(), result.report.end());

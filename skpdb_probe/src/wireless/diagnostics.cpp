@@ -53,7 +53,8 @@ std::string CapabilityDiagnostics() {
     std::string text = SystemReport();
     const auto touch = TouchDiagnostics();
     text += "touch.check=" + std::string(touch.ok ? "ready\n" : "failed\n");
-    text += touch.ok ? Prefix("touch.", touch.report) : "touch.error=" + touch.error + "\n";
+    text += Prefix("touch.", touch.report);
+    if (!touch.ok) text += "touch.error=" + touch.error + "\n";
     text += Prefix("overlay.", CursorSurfaceReport());
     text += Prefix("memory.", MemoryDiagnostics(), true);
     text += "capability.shell=exec\ncapability.files=list,read,write\ncapability.touch=sampled,batch,dynamic-client-slots\n";

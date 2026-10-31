@@ -13,6 +13,8 @@ jobs:
       - run: python tools/check_repository.py
       - run: g++ -std=c++17 -O2 skpdb_probe/tests/touch_guard_test.cpp skpdb_probe/src/input/touch_guard_payload.cpp -o /tmp/touch_guard_test
       - run: /tmp/touch_guard_test
+      - run: g++ -std=c++17 -O2 -Wall -Wextra -Werror skpdb_probe/tests/touch_guard_hook_test.cpp -o /tmp/touch_guard_hook_test
+      - run: /tmp/touch_guard_hook_test
       - run: python skpdb_probe/tests/test_deploy_tcp.py
       - run: pip install numpy
       - run: python skpdb_probe/tests/test_lab.py
