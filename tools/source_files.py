@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 
 ROOT_FILES = {"README.md", "LICENSE", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md",
-              "THIRD_PARTY_NOTICES.md", ".gitignore", ".gitattributes", ".editorconfig", ".clang-format"}
+              "THIRD_PARTY_NOTICES.md", "global.json", ".gitignore", ".gitattributes", ".editorconfig", ".clang-format"}
 ROOTS = {"desktop", "host", "skpdb_probe", "docs", "tools", ".github"}
 SUFFIXES = {".cs", ".csproj", ".xaml", ".manifest", ".sln", ".props", ".targets",
             ".cpp", ".h", ".java", ".py", ".ps1", ".js", ".cjs", ".html", ".css",

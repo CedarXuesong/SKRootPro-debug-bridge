@@ -4,6 +4,8 @@
 
 在 Windows x64 安装 .NET 8 SDK、Windows App Runtime 1.7、Visual Studio 2022 C++ Build Tools
 和 CMake。建议使用 PowerShell 7。WinUI 的 NuGet 依赖会在构建时还原。
+仓库的 `global.json` 将 SDK 固定到 .NET 8 系列，避免已安装的更高版本 SDK
+使构建期 Appx 任务引用与 .NET 8 不兼容；允许自动使用最新的 8.0 功能带和补丁。
 
 ```powershell
 ./desktop/build.ps1
