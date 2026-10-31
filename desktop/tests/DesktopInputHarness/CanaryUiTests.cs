@@ -10,7 +10,7 @@ using SkpdbDesktop;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
-internal static class BetaUiTests
+internal static class CanaryUiTests
 {
     internal static async Task SaveWindowEvidenceAsync(string prefix)
     {
@@ -54,7 +54,9 @@ internal static class BetaUiTests
         var window = App.MainWindow!;
         var nav = Field<NavigationView>(window, "Nav");
         var canvas = Field<Canvas>(page, "LayoutCanvas");
-        Check(Field<TextBlock>(window, "BetaBadge").Text == "测试版", "Missing title beta badge");
+        var expectedVisibility = BuildInfo.IsCanary ? Visibility.Visible : Visibility.Collapsed;
+        Check(Field<TextBlock>(window, "CanaryBadgeText").Text == "Canary 版" &&
+            Field<Border>(window, "CanaryBadge").Visibility == expectedVisibility, "Wrong build channel badge");
         Check(nav.IsPaneToggleButtonVisible && nav.PaneDisplayMode == NavigationViewPaneDisplayMode.Left, "Sidebar toggle missing");
         var toggle = Descendants(nav).OfType<Button>().FirstOrDefault(b => b.Name == "TogglePaneButton");
         Check(toggle is not null, "Navigation toggle template button missing");
@@ -68,12 +70,14 @@ internal static class BetaUiTests
         var bounds = Field<Grid>(page, "PreviewWatermarkBounds");
         var watermark = Field<TextBlock>(page, "PreviewWatermark");
         var rectangle = Field<Windows.Foundation.Rect>(page, "_screenRect");
-        Check(!Field<Canvas>(page, "PreviewWatermarkLayer").IsHitTestVisible && !watermark.IsHitTestVisible &&
-            watermark.ActualWidth > 50 && watermark.ActualHeight > 10 &&
+        var layer = Field<Canvas>(page, "PreviewWatermarkLayer");
+        Check(layer.Visibility == expectedVisibility && !layer.IsHitTestVisible && !watermark.IsHitTestVisible &&
+            watermark.Text == "SKPDB · Canary 版", "Wrong build channel watermark");
+        Check(!BuildInfo.IsCanary || (watermark.ActualWidth > 50 && watermark.ActualHeight > 10 &&
             watermark.RenderTransform is RotateTransform { Angle: -24 } && bounds.Clip is RectangleGeometry clip &&
             Math.Abs(clip.Rect.Width - rectangle.Width) < 1 && Math.Abs(bounds.Width - rectangle.Width) < 1 &&
-            Math.Abs(Canvas.GetLeft(bounds) - rectangle.X) < 1, "Watermark rotation, clipping or hit testing is wrong");
-        Console.WriteLine($"PASS title beta badge, slanted clipped watermark and real sidebar toggle: canvas {openWidth:F0} -> {collapsedWidth:F0}");
+            Math.Abs(Canvas.GetLeft(bounds) - rectangle.X) < 1), "Watermark rotation, clipping or hit testing is wrong");
+        Console.WriteLine($"PASS {BuildInfo.Channel} badge, watermark and real sidebar toggle: canvas {openWidth:F0} -> {collapsedWidth:F0}");
 
         var snapshotToggle = Field<ToggleMenuFlyoutItem>(page, "SnapshotVisibleToggle");
         snapshotToggle.IsChecked = false;
@@ -82,7 +86,7 @@ internal static class BetaUiTests
         var image = new RenderTargetBitmap();
         await image.RenderAsync(Field<Grid>(window, "RootGrid"));
         var pixels = await image.GetPixelsAsync();
-        var screenshot = Path.GetFullPath(Path.Combine(".scratch", "beta-ui-" + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".png"));
+        var screenshot = Path.GetFullPath(Path.Combine(".scratch", BuildInfo.Channel.ToLowerInvariant() + "-ui-" + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".png"));
         using (var stream = new InMemoryRandomAccessStream())
         {
             var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
@@ -97,7 +101,7 @@ internal static class BetaUiTests
             var encoded = new byte[(int)stream.Size]; encodedReader.ReadBytes(encoded);
             File.WriteAllBytes(screenshot, encoded);
         }
-        Console.WriteLine("BETA_UI_SCREENSHOT " + screenshot);
+        Console.WriteLine("CHANNEL_UI_SCREENSHOT " + screenshot);
         snapshotToggle.IsChecked = true;
         Call(page, "SnapshotVisible_Changed", snapshotToggle, new RoutedEventArgs());
 
@@ -108,6 +112,23 @@ internal static class BetaUiTests
         var engine = Field<GamepadEngine>(page, "_engine");
         Check(engine.IsRunning, "HUD start failed: " + Field<TextBlock>(page, "StatusText").Text);
         async Task<JsonNode> State() => JsonNode.Parse((await session.Client.ExecAsync("fixture state")).Output)!;
+        if (!BuildInfo.UseDebugOverlay(session.Info))
+        {
+            Check((await State())["hudUpdates"]!.GetValue<int>() == 0 &&
+                Field<ControlOverlaySession?>(page, "_controlOverlay") is null, "Release started a HUD session");
+            await (Task)Call(page, "StopEngineAsync")!;
+            await session.Client.ExecAsync("fixture hud-unsupported");
+            await (Task)Call(page, "StartEngineAsync")!;
+            Check(engine.IsRunning && (await State())["hudUpdates"]!.GetValue<int>() == 0,
+                "Release control depends on HUD support");
+            await engine.StopAsync();
+            await Until(() => !Field<bool>(page, "_controlActive"));
+            Check(!Field<MouseCapture>(page, "_mouseCapture").IsActive, "HUD-free stop retained mouse capture");
+            await (Task)Call(page, "StopEngineAsync")!;
+            await session.Client.ExecAsync("fixture hud-ok");
+            Console.WriteLine("PASS Release control starts and stops without HUD traffic or HUD support");
+            return;
+        }
         Check((await State())["hudEnabled"]!.GetValue<int>() == 1, "HUD missing with cursor disabled");
         var updates = (await State())["hudUpdates"]!.GetValue<int>();
         engine.SetViewMode(true); await (Task)Call(page, "DisableCursorAsync")!;

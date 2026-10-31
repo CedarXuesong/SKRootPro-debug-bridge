@@ -8,6 +8,8 @@ param(
     [string]$Ndk = $env:ANDROID_NDK_ROOT,
     [string]$Sdk = $env:SKROOT_SDK_ROOT,
     [string]$Jdk = $env:JAVA_HOME,
+    [ValidateSet('Release', 'Canary')]
+    [string]$BuildChannel = 'Release',
     [switch]$ExperimentalTouchGuard
 )
 
@@ -27,11 +29,13 @@ if (-not (Test-Path -LiteralPath (Join-Path $Sdk 'lib\libkernel_module_kit_stati
 & (Join-Path $root 'tools/build_webui.ps1')
 & (Join-Path $root 'tools/build_touch_guard.ps1') -Ndk $Ndk
 & (Join-Path $root 'tools/build_gyro.ps1') -Ndk $Ndk
-& (Join-Path $root 'tools/build_cursor.ps1') -AndroidSdk (Split-Path -Parent (Split-Path -Parent $Ndk)) -Jdk $Jdk
+& (Join-Path $root 'tools/build_cursor.ps1') -AndroidSdk (Split-Path -Parent (Split-Path -Parent $Ndk)) -Jdk $Jdk -BuildChannel $BuildChannel
 
 $guardFlag = if ($ExperimentalTouchGuard) { 1 } else { 0 }
+$canaryFlag = if ($BuildChannel -eq 'Canary') { 1 } else { 0 }
 $flavor = if ($ExperimentalTouchGuard) { 'experimental' } else { 'default' }
 $libFolder = if ($ExperimentalTouchGuard) { 'libs-experimental' } else { 'libs' }
+if ($BuildChannel -eq 'Canary') { $flavor += '-canary'; $libFolder += '-canary' }
 $outDir = (Join-Path $root ('obj/' + $flavor)) -replace '\\', '/'
 $libsDir = (Join-Path $root $libFolder) -replace '\\', '/'
 $sdkDir = $Sdk -replace '\\', '/'
@@ -43,7 +47,8 @@ $sdkDir = $Sdk -replace '\\', '/'
     NDK_OUT=$outDir `
     NDK_LIBS_OUT=$libsDir `
     SKROOT_SDK=$sdkDir `
-    SKPDB_EXPERIMENTAL_TOUCH_GUARD=$guardFlag
+    SKPDB_EXPERIMENTAL_TOUCH_GUARD=$guardFlag `
+    SKPDB_CANARY=$canaryFlag
 
 if ($LASTEXITCODE -ne 0) {
     throw "ndk-build failed with exit code $LASTEXITCODE"
@@ -61,7 +66,10 @@ $clang = Join-Path $Ndk 'toolchains\llvm\prebuilt\windows-x86_64\bin\aarch64-lin
     -ldl -o (Join-Path $libsDir 'arm64-v8a/skpdb_loader')
 if ($LASTEXITCODE -ne 0) { throw 'diagnostic loader build failed' }
 
-$archiveName = if ($ExperimentalTouchGuard) { 'skpdb_dev_network-experimental.zip' } else { 'skpdb_dev_network.zip' }
+$archiveName = 'skpdb_dev_network'
+if ($ExperimentalTouchGuard) { $archiveName += '-experimental' }
+if ($BuildChannel -eq 'Canary') { $archiveName += '-canary' }
+$archiveName += '.zip'
 Compress-Archive -LiteralPath $wireless -DestinationPath (Join-Path $root $archiveName) -Force
 
 Write-Host "wireless : $(Join-Path $root $archiveName)"

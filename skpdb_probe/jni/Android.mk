@@ -16,6 +16,13 @@ endif
 SKROOT_KIT := $(SKROOT_SDK)/lib/libkernel_module_kit_static.a
 
 COMMON_CPPFLAGS := -std=c++20 -fPIC -fvisibility=hidden -fno-stack-protector
+SKPDB_CANARY ?= 0
+ifneq ($(SKPDB_CANARY),0)
+ifneq ($(SKPDB_CANARY),1)
+$(error SKPDB_CANARY must be 0 or 1)
+endif
+endif
+COMMON_CPPFLAGS += -DSKPDB_CANARY=$(SKPDB_CANARY)
 COMMON_CPPFLAGS += -DSKPDB_EXPERIMENTAL_TOUCH_GUARD=$(if $(SKPDB_EXPERIMENTAL_TOUCH_GUARD),$(SKPDB_EXPERIMENTAL_TOUCH_GUARD),0)
 COMMON_LDFLAGS := -Wl,-O2 -Wl,--gc-sections -Wl,-s
 

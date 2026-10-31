@@ -83,9 +83,11 @@ $ui = "$PWD\desktop\tests\DesktopInputHarness\bin\Debug\net8.0-windows10.0.19041
 无法取得交互桌面的前台时，会明确输出 `SKIP native page input`；此时页面非交互部分仍运行，
 `INPUT_UI_PASS` 不代表被跳过的鼠标实点/键盘交互已验证。
 快照套件验证 WinUI 完整解码、画布背景、失败保留、旋转、切页与内存释放；手机快照不写入 PNG。
-0.12.38 另验证标题测试版徽章、倾斜水印裁剪/命中穿透、真实侧栏按钮收缩并扩大画布，
+通道回归验证 Canary 版徽章、倾斜水印裁剪/命中穿透、真实侧栏按钮收缩并扩大画布，
 以及光标关闭、视角模式、停止、旧模块拒绝、心跳故障后的页面清理。
-测试宿主将桌面界面渲染证据保存到 `.scratch/beta-ui-时间戳.png`，它不是采集的手机快照。
+Release 检查徽章与水印隐藏、没有 HUD 心跳，以及不支持 HUD 时仍可启动操控。
+测试宿主将桌面界面渲染证据保存到 `.scratch/<通道>-ui-时间戳.png`，它不是采集的手机快照。
+`LookHarness --build-channel-test` 编译运行两种通道，检查版本策略、模块信息解析及混合通道兼容性。
 `LookHarness --overlay-test` 验证 HUD 大端字段、非法状态、独立心跳、停止、旧模块响应、
 单次连接故障重连、持续故障通知和主连接代次隔离。
 模块的 Android 无关状态测试可用 JDK 编译 `HudState.java` 与 `skpdb_probe/tests/HudStateTest.java`，

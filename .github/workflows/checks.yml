@@ -1,5 +1,10 @@
 name: Source and offline regressions
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 jobs:
@@ -15,6 +20,12 @@ jobs:
       - run: /tmp/touch_guard_test
       - run: g++ -std=c++17 -O2 -Wall -Wextra -Werror skpdb_probe/tests/touch_guard_hook_test.cpp -o /tmp/touch_guard_hook_test
       - run: /tmp/touch_guard_hook_test
+      - name: Verify both module build channels
+        run: |
+          for canary in 0 1; do
+            g++ -std=c++17 -O2 -Wall -Wextra -Werror -DSKPDB_CANARY=$canary -Iskpdb_probe/src skpdb_probe/tests/build_channel_test.cpp skpdb_probe/src/display/cursor.cpp -o /tmp/build_channel_test
+            /tmp/build_channel_test
+          done
       - run: python skpdb_probe/tests/test_deploy_tcp.py
       - run: pip install numpy
       - run: python skpdb_probe/tests/test_lab.py
@@ -29,3 +40,10 @@ jobs:
         with:
           python-version: '3.12'
       - run: python tools/run_regressions.py
+      - name: Verify both desktop build channels
+        shell: pwsh
+        run: |
+          foreach ($channel in 'Release','Canary') {
+            dotnet run --project desktop/tests/LookHarness -p:BuildChannel=$channel -- --build-channel-test
+            if ($LASTEXITCODE -ne 0) { throw "$channel tests failed" }
+          }

@@ -14,6 +14,10 @@
 #include <string>
 
 #include "display/cursor_dex.h"
+#include "common/build_info.h"
+
+static_assert(kCursorDexCanary == bool(SKPDB_CANARY),
+              "Regenerate the cursor DEX with the same BuildChannel as the native module");
 
 namespace skpdb {
 namespace {
@@ -163,6 +167,7 @@ std::string CursorSurfaceReport() {
     const auto age = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - g_overlay_updated).count();
     return std::string("renderer=") + (g_started ? "ready\n" : "stopped\n") +
+        "debug_overlay=" + std::to_string(SKPDB_CANARY) + "\n" +
         "cursor_visible=" + (g_started && g_cursor_visible ? "1\n" : "0\n") +
         "hud_visible=" + (g_started && g_overlay.enabled && age < 6000 ? "1\n" : "0\n") +
         "hud_width=" + std::to_string(g_overlay.width) + "\nhud_height=" + std::to_string(g_overlay.height) +
@@ -189,6 +194,10 @@ void CursorSurfaceSetVisible(bool visible) {
 
 bool CursorSurfaceSetOverlay(const ControlOverlayState& s, std::string& error) {
     std::lock_guard<std::mutex> guard(g_mutex);
+#if !SKPDB_CANARY
+    if (s.enabled) error = "debug overlay is disabled in Release builds";
+    return !s.enabled;
+#else
     if (!g_started) {
         if (!s.enabled) return true;
         error = "overlay renderer is not running"; return false;
@@ -202,6 +211,7 @@ bool CursorSurfaceSetOverlay(const ControlOverlayState& s, std::string& error) {
     if (!Await("HUD " + std::to_string(sequence), 2000, error)) return false;
     g_overlay = s; g_overlay_updated = std::chrono::steady_clock::now();
     return true;
+#endif
 }
 
 void CursorSurfaceStop() {

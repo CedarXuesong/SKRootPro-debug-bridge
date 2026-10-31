@@ -1,4 +1,4 @@
-# Current release: module 0.12.14
+# Current release: module 0.12.15
 
 See [the repository README](../README.md), [build instructions](../docs/BUILDING.md) and
 [connection/touch troubleshooting](../docs/TROUBLESHOOTING.md). Source is available under
@@ -39,7 +39,8 @@ the connect helpers, `src/commands.h` declares one function per command, and the
 bodies live in `src/commands_session.cpp`, `src/commands_memory.cpp` and
 `src/commands_admin.cpp`. `src/main.cpp` only parses options and dispatches.
 
-Module identity: `SKPDB Development Network Bridge` 0.12.14, authored by
+Module identity: `SKPDB Network Bridge` 0.12.15 (or `SKPDB Canary Network Bridge`
+0.12.15-canary), authored by
 `雪松/CedarXuesong` (`36c8b2dc7a8b4bb6a2b0e0ce54e05f31`). The `id32` never
 changes; only the version string moves (0.4.0 published the TCP bridge, 0.8.0
 added untraced memory reads and dropped the wired transport, 0.9.0 replaced the
@@ -80,6 +81,13 @@ Build the module and package it:
 ```powershell
 .\skpdb_probe\build.ps1
 ```
+
+The default `-BuildChannel Release` disables the phone debug HUD at compile time
+while retaining the ordinary cursor. `-BuildChannel Canary` enables the HUD and
+Canary branding; its module archive is `skpdb_dev_network-canary.zip`. The
+experimental touch guard is independent and stays disabled by default in both
+channels. CI publishes Canary builds automatically; see
+[build channels and GitHub builds](../docs/BUILDING.md).
 
 Unsigned scripts are blocked by the default execution policy, so either
 allow the script or run it through a bypass:

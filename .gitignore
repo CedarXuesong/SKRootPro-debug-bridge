@@ -4,6 +4,8 @@ host/build/
 skpdb_probe/obj/
 skpdb_probe/libs/
 skpdb_probe/libs-experimental/
+skpdb_probe/libs-canary/
+skpdb_probe/libs-experimental-canary/
 skpdb_probe/*_obj/
 skpdb_probe/*_libs/
 skpdb_probe/skpdb_dev_network.zip

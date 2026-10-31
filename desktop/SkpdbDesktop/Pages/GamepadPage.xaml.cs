@@ -88,7 +88,7 @@ public sealed partial class GamepadPage : Page
 
     private SkpdbClient? _cursorClient;
     private ControlOverlaySession? _controlOverlay;
-    private bool _startingControl, _overlayCleanupQueued;
+    private bool _startingControl, _controlActive, _controlCleanupQueued;
     private CancellationTokenSource? _cursorCts;
     private int _cursorEpoch;
     private bool _cursorUpdating;
@@ -100,6 +100,7 @@ public sealed partial class GamepadPage : Page
     public GamepadPage()
     {
         InitializeComponent();
+        PreviewWatermarkLayer.Visibility = BuildInfo.IsCanary ? Visibility.Visible : Visibility.Collapsed;
         _engine.Changed += Engine_Changed;
         _engine.Log += (_, message) =>
         {
@@ -604,11 +605,11 @@ public sealed partial class GamepadPage : Page
         if (_controlOverlay is { } overlay)
         {
             if (_engine.IsRunning) overlay.Update(BuildOverlayState());
-            else if (!_startingControl && !_overlayCleanupQueued)
-            {
-                _overlayCleanupQueued = true;
-                _ = CleanupStoppedControlAsync(overlay);
-            }
+        }
+        if (_controlActive && !_engine.IsRunning && !_startingControl && !_controlCleanupQueued)
+        {
+            _controlCleanupQueued = true;
+            _ = CleanupStoppedControlAsync();
         }
         UpdateSnapshotUi();
         if (TraceToggle.IsChecked == true) ConfigureLiveTraces();
@@ -669,10 +670,14 @@ public sealed partial class GamepadPage : Page
             _engine.IsMouseMode ? (byte)0 : _engine.ViewMode ? (byte)1 : (byte)2, IsAppActive());
     }
 
-    private async Task CleanupStoppedControlAsync(ControlOverlaySession overlay)
+    private async Task CleanupStoppedControlAsync()
     {
-        try { await StopOverlayControlAsync(overlay); }
-        finally { _overlayCleanupQueued = false; }
+        await _engineTransitions.WaitAsync();
+        try
+        {
+            if (_controlActive && !_engine.IsRunning) await StopEngineCoreAsync();
+        }
+        finally { _controlCleanupQueued = false; _engineTransitions.Release(); }
     }
 
     private async Task StopOverlayControlAsync(ControlOverlaySession overlay, Exception? error = null)
@@ -857,18 +862,22 @@ public sealed partial class GamepadPage : Page
             }
             var epoch = _pageEpoch;
             var generation = _session.Client.ConnectionGeneration;
-            pendingOverlay = await ControlOverlaySession.StartAsync(_session.Client, BuildOverlayState());
+            if (BuildInfo.UseDebugOverlay(info))
+                pendingOverlay = await ControlOverlaySession.StartAsync(_session.Client, BuildOverlayState());
             await _engine.StartAsync(_session.Client, _device, _profile);
+            _controlActive = true;
             if(_profile.GyroEnabled)await _engine.SetGyroModeAsync(true);
             if (!_pageActive || epoch != _pageEpoch || generation != _session.Client.ConnectionGeneration)
-            { await _engine.StopAsync(); return; }
-            var activeOverlay = pendingOverlay;
-            activeOverlay.Failed += error => DispatcherQueue.TryEnqueue(async () =>
+            { await StopEngineCoreAsync(); return; }
+            if (pendingOverlay is { } activeOverlay)
             {
-                await StopOverlayControlAsync(activeOverlay, error);
-            });
-            _controlOverlay = activeOverlay; pendingOverlay = null;
-            if (activeOverlay.Failure is { } overlayFailure) throw overlayFailure;
+                activeOverlay.Failed += error => DispatcherQueue.TryEnqueue(async () =>
+                {
+                    await StopOverlayControlAsync(activeOverlay, error);
+                });
+                _controlOverlay = activeOverlay; pendingOverlay = null;
+                if (activeOverlay.Failure is { } overlayFailure) throw overlayFailure;
+            }
             _engine.SetInputEnabled(IsAppActive());
             _engine.ClearInput();
             _hasPointer = false;
@@ -969,6 +978,7 @@ public sealed partial class GamepadPage : Page
     private async Task StopEngineCoreAsync()
     {
         LogPageEvent("stop requested");
+        _controlActive = false;
         ReleaseNativeMouseInput();
         await _engine.StopAsync();
         if (_controlOverlay is { } overlay) { _controlOverlay = null; await overlay.DisposeAsync(); }

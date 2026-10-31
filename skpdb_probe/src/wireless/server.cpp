@@ -62,7 +62,7 @@ constexpr char kBaseCapabilities[] =
     "version=1;transport=tcp;auth=hmac-sha256;file=rw;shell=exec;pty=none;forward=none;"
     "mem=read,maps,info,scatter,dump,resident,write,scan,sym;mem_ptrace=none;mem_backends=kernel,vm_readv,proc_mem;"
     "touch=inject,info,batch;touch_device=real-touchscreen;touch_ptrace=none;"
-    "knock=udp;admin=unix;webui=http;mem_policy=no-fault-default;fast=SKF2;hud=transparent;"
+    "knock=udp;admin=unix;webui=http;mem_policy=no-fault-default;fast=SKF2;hud=" SKPDB_HUD_CAPABILITY ";"
     "diagnostics=1;gyro=fw-hook;";
 
 std::vector<uint8_t> ErrorResponse(const std::string& message) {
@@ -702,6 +702,8 @@ std::string Bridge::InfoReport() {
     std::string text;
     text += "name=" + std::string(kModuleName) + "\n";
     text += "version=" + std::string(kModuleVersion) + "\n";
+    text += "build_channel=" SKPDB_BUILD_CHANNEL "\n";
+    text += "debug_overlay=" + std::to_string(SKPDB_CANARY) + "\n";
     text += "id32=" + std::string(kModuleId32) + "\n";
     text += "pid=" + std::to_string(getpid()) + "\n";
     text += "uptime_seconds=" + std::to_string(uptime) + "\n";

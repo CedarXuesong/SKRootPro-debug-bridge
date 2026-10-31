@@ -27,7 +27,7 @@
     $('version').textContent=map.version||'—';$('uptime').textContent=uptime(map.uptime_seconds);
     $('sessions').textContent=map.sessions||'0';$('listen-state').textContent=map.always_listen==='1'?'始终监听':map.listening==='yes'?'监听 · 已开放':'监听 · 已关闭';
     $('fast-ok').textContent=map.fast_ok||'0';$('fast-mode').textContent='SKF'+(map.fast_protocol||'?')+' · '+(map.fast_rate_hz||'—')+' Hz';
-    $('hud-state').textContent=map['overlay.hud_visible']==='1'?'显示中':map['overlay.renderer']==='ready'?'待命':'未启动';
+    $('hud-state').textContent=map.debug_overlay==='0'?'发行版已禁用':map['overlay.hud_visible']==='1'?'显示中':map['overlay.renderer']==='ready'?'待命':'未启动';
     fill('module-info',map,[['name','模块'],['pid','运行 PID'],['system.android','Android'],['system.sdk','API'],['system.kernel','内核'],['system.arch','架构'],['system.model','设备'],['system.btf_file','BTF 文件'],['id32','模块编号']]);
     const network=Object.keys(map).filter(k=>k.startsWith('network.')).map(k=>[k,k.slice(8)+' 地址']);
     fill('transport-info',map,[['service_port','TCP 端口'],['knock_port','knock 端口'],['fast_port','触摸 UDP 端口'],['fast_rx','收到触摸包'],['fast_ok','已应用事件'],['fast_bad','无效包'],['fast_stale','过期包'],['fast_dropped','丢弃/覆盖'],['fast_max_records','每帧最多记录'],['fast_buffer_samples','缓冲采样数'],['fast_realtime','实时线程'],['sessions_total','累计连接'],...network]);

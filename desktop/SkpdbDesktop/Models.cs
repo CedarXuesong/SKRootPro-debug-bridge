@@ -31,7 +31,9 @@ public sealed record ModuleInfo(
     long FastReceived = 0,
     long FastApplied = 0,
     long FastDropped = 0,
-    bool FastRealtime = false);
+    bool FastRealtime = false,
+    string BuildChannel = "",
+    bool DebugOverlayEnabled = true);
 
 public sealed record ExecResult(int ExitCode, string Output);
 

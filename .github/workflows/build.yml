@@ -1,0 +1,147 @@
+name: Build and publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Build channel
+        type: choice
+        options: [Canary, Release]
+        default: Canary
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}-${{ inputs.channel || 'Canary' }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  BUILD_CHANNEL: ${{ inputs.channel || 'Canary' }}
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  desktop:
+    needs: checks
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build and package desktop
+        run: ./desktop/package-portable.ps1 -BuildChannel $env:BUILD_CHANNEL
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: desktop-${{ env.BUILD_CHANNEL }}
+          path: |
+            dist/SKPDB-*-portable.zip
+            dist/SKPDB-*-portable.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  module:
+    needs: checks
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Fetch pinned upstream SKRoot SDK
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: abcz316/SKRoot-linuxKernelRoot
+          ref: 7ad782c8bce0410381e9dae803206c4b76d6f56d
+          path: .scratch/skroot-upstream
+          sparse-checkout: Pro(众测开放中)/src/testModule/kernel_module_kit
+          persist-credentials: false
+      - name: Prepare Android tools and SDK
+        run: |
+          $sdk = Join-Path $env:RUNNER_TEMP 'skroot-sdk'
+          Copy-Item -LiteralPath '.scratch/skroot-upstream/Pro(众测开放中)/src/testModule/kernel_module_kit' -Destination $sdk -Recurse
+          $hash = (Get-FileHash "$sdk/lib/libkernel_module_kit_static.a" -Algorithm SHA256).Hash
+          if ($hash -ne 'D066B9A55CE5319552EC2F42BC3AE11D38F3F1F541220EE2E7DE645B63B8A3AA') {
+            throw 'Unexpected SKRoot SDK library checksum'
+          }
+          & "$env:ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager.bat" 'platforms;android-35' 'build-tools;35.0.0' 'ndk;29.0.14206865'
+          if ($LASTEXITCODE -ne 0) { throw 'Android tools installation failed' }
+          "SKROOT_SDK_ROOT=$sdk" >> $env:GITHUB_ENV
+          "ANDROID_NDK_ROOT=$env:ANDROID_HOME/ndk/29.0.14206865" >> $env:GITHUB_ENV
+      - name: Build and package module
+        run: |
+          ./skpdb_probe/build.ps1 -BuildChannel $env:BUILD_CHANNEL
+          $code = (& javap -c -classpath "skpdb_probe/obj/cursor-java/$env:BUILD_CHANNEL/classes" skpdb.cursor.Main | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw 'Renderer bytecode inspection failed' }
+          $expected = $env:BUILD_CHANNEL -eq 'Canary'
+          if ($code.Contains('String SKPDB Debug') -ne $expected -or $code.Contains('String SKPDB Canary') -ne $expected) {
+            throw 'Renderer diagnostic layers do not match the build channel'
+          }
+          if ($env:BUILD_CHANNEL -eq 'Canary') { $archive = 'skpdb_probe/skpdb_dev_network-canary.zip' }
+          else { $archive = 'skpdb_probe/skpdb_dev_network.zip' }
+          $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $([IO.Path]::GetFileName($archive))" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
+          Compress-Archive -Path LICENSE,THIRD_PARTY_NOTICES.md,docs/third-party -DestinationPath skpdb_probe/SKPDB-module-notices.zip
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: module-${{ env.BUILD_CHANNEL }}
+          path: |
+            skpdb_probe/skpdb_dev_network*.zip
+            skpdb_probe/skpdb_dev_network*.zip.sha256
+            skpdb_probe/SKPDB-module-notices.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [desktop, module]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish versioned build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_SHA: ${{ github.sha }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          BUILD_ID: ${{ github.run_id }}
+          BUILD_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          channel="${BUILD_CHANNEL,,}"
+          prerelease=()
+          if [[ "$BUILD_CHANNEL" == Canary ]]; then prerelease=(--prerelease); fi
+          printf '%s\n' \
+            "Build channel: $BUILD_CHANNEL" \
+            "Commit: $BUILD_SHA" \
+            "Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_ID" \
+            "" \
+            "Canary builds include the debug overlay. Release builds disable it at compile time." \
+            "Desktop requires .NET 8 Desktop Runtime and Windows App Runtime 1.7." \
+            "Install the module ZIP as-is; reboot to activate the new module." \
+            "Module dependency license notices are in SKPDB-module-notices.zip." > notes.md
+          gh release create "$channel-$BUILD_ID-$BUILD_ATTEMPT" artifacts/* \
+            --target "$BUILD_SHA" --title "$BUILD_CHANNEL #$BUILD_NUMBER" \
+            --notes-file notes.md --latest=false "${prerelease[@]}"

@@ -43,14 +43,16 @@ powershell -ExecutionPolicy Bypass -File .\desktop\package-portable.ps1
 
 输出 `dist\SKPDB-<版本>-portable.zip`，内含 `SKPDB-<版本>` 目录和 `README.txt`。
 
-当前客户端版本为 `0.12.42`，模块为 `0.12.14`。
+当前客户端版本为 `0.12.43`，模块为 `0.12.15`。
+构建通道通过 `-BuildChannel Release|Canary` 选择，默认 Release。
+Canary 版本号附带 `-canary`；GitHub 自动构建与下载见 [BUILDING](../docs/BUILDING.md)。
 
 - 连接重试时重新发送签名 knock，支持初始 UDP 丢失后的恢复。
 - 模块继续向真实触屏注入；触点使用空闲物理槽，软件释放保护为默认关闭的实验功能，修订后仍待真机复测。
   不创建虚拟触屏、不新增 InputDevice，不关闭厂商触摸服务。兼容条件与边界见 `../docs/TROUBLESHOOTING.md`。
 - 支持动态触点槽位、多个轮盘/视角组件、采样弧线路径、双指视角接力、普通按键随机落点。
 - 编辑器支持数值框/滑块联动、自动保存、撤销和重叠组件选择；画布内显示轮盘、视角轨迹与内存截图。
-- 顶部和画布显示测试版标识；侧栏可收缩。手机独立透明调试层与光标分别控制。
+- Canary 的顶部和画布显示 Canary 版标识，手机显示独立透明调试层；Release 禁用这些显示，保留手机光标。侧栏可收缩。
 - 陀螺仪普通队列按 UID 支持 type 4/16/11/15，覆盖双轴和屏幕方向；Direct Channel 注入仍未实现。
 - 正式入口的离线预览仅在设置的开发选项中。不会默认启用 Microsoft-only DLL 签名策略。
 

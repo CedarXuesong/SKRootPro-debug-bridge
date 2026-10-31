@@ -70,7 +70,7 @@ internal static class EditorUiTests
             Call(page, "ApplySelected_Click", page, new Microsoft.UI.Xaml.RoutedEventArgs());
             Check(Field<List<string>>(page, "_undo").Count == undoCount, "Explicit save created an empty undo item");
             await Task.Delay(100);
-            await BetaUiTests.SaveWindowEvidenceAsync("editor-sliders");
+            await CanaryUiTests.SaveWindowEvidenceAsync("editor-sliders");
             Call(page, "SelectElement", "button", restored.Buttons[0].Id);
             var radius = Field<NumberBox>(page, "RadiusBox");
             sliders[radius].Value = .085;

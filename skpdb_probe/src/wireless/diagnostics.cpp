@@ -9,6 +9,7 @@
 #include "input/touch.h"
 #include "memory/memread.h"
 #include "display/cursor_surface.h"
+#include "common/build_info.h"
 
 namespace skpdb::wireless {
 namespace {
@@ -58,7 +59,7 @@ std::string CapabilityDiagnostics() {
     text += Prefix("overlay.", CursorSurfaceReport());
     text += Prefix("memory.", MemoryDiagnostics(), true);
     text += "capability.shell=exec\ncapability.files=list,read,write\ncapability.touch=sampled,batch,dynamic-client-slots\n";
-    text += "capability.look=additive-multitouch\ncapability.fast=SKF2\ncapability.hud=independent,transparent,lease\n";
+    text += "capability.look=additive-multitouch\ncapability.fast=SKF2\ncapability.hud=" SKPDB_HUD_CAPABILITY "\n";
     return text;
 }
 }

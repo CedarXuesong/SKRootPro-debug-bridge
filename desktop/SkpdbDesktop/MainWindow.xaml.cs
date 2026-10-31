@@ -68,6 +68,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        CanaryBadge.Visibility = BuildInfo.IsCanary ? Visibility.Visible : Visibility.Collapsed;
         ContentFrame.Navigated += (_, e) => { if (e.Content is GamepadPage page) _gamepadPage = page; };
         AppWindow.Closing += (closingWindow, args) =>
         {
@@ -76,7 +77,7 @@ public sealed partial class MainWindow : Window
             _ = CloseAfterCleanupAsync();
         };
         Instance = this;
-        Title = "SKPDB";
+        Title = BuildInfo.IsCanary ? "SKPDB Canary" : "SKPDB";
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };

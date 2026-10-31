@@ -1,6 +1,7 @@
 #include "display/cursor.h"
 
 #include "display/cursor_surface.h"
+#include "common/build_info.h"
 
 #include <cstdio>
 #include <mutex>
@@ -79,10 +80,17 @@ CursorResult CursorDestroy() {
 CursorResult ControlOverlaySet(const ControlOverlayState& state) {
     std::lock_guard<std::mutex> guard(g_mutex);
     CursorResult result;
+#if !SKPDB_CANARY
+    result.ok = !state.enabled;
+    if (result.ok) result.report = "hud=0";
+    else result.error = "debug overlay is disabled in Release builds";
+    return result;
+#else
     if (state.enabled && !CursorSurfaceStart(result.error)) return result;
     result.ok = CursorSurfaceSetOverlay(state, result.error);
     if (result.ok) result.report = state.enabled ? "hud=1" : "hud=0";
     return result;
+#endif
 }
 
 }  // namespace skpdb

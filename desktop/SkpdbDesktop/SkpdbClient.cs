@@ -402,7 +402,8 @@ public sealed class SkpdbClient : IDisposable
             GetInt("fast_port"), Get("fast_token"), Math.Max(1, GetInt("fast_protocol")),
             GetLong("fast_stale"), Get("admin_socket"),
             GetInt("fast_max_records") is > 0 and <= 16 ? GetInt("fast_max_records") : 8,
-            GetLong("fast_rx"), GetLong("fast_ok"), GetLong("fast_dropped"), Get("fast_realtime") == "1");
+            GetLong("fast_rx"), GetLong("fast_ok"), GetLong("fast_dropped"), Get("fast_realtime") == "1",
+            Get("build_channel"), Get("debug_overlay") != "0");
     }
 
     public async Task<string> PingAsync(CancellationToken cancellationToken = default)

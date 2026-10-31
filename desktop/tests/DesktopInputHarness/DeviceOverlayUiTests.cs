@@ -25,10 +25,11 @@ internal static class DeviceOverlayUiTests
             {
                 settings.CursorEnabled = i == 1;
                 await Invoke(page, "StartEngineAsync");
-                if (!engine.IsRunning || Field<ControlOverlaySession?>(page, "_controlOverlay") is null)
+                var expectsOverlay = BuildInfo.UseDebugOverlay(AppSession.Current.Info);
+                if (!engine.IsRunning || (Field<ControlOverlaySession?>(page, "_controlOverlay") is not null) != expectsOverlay)
                     throw new InvalidOperationException("Real device start failed: " + Field<TextBlock>(page, "StatusText").Text);
                 await Task.Delay(2200, timeout.Token);
-                if (!engine.IsRunning || Field<ControlOverlaySession>(page, "_controlOverlay").Failure is not null)
+                if (!engine.IsRunning || Field<ControlOverlaySession?>(page, "_controlOverlay")?.Failure is not null)
                     throw new InvalidOperationException("Real device heartbeat failed");
                 if (i == 1 && !Field<bool>(page, "_cursorActive"))
                     throw new InvalidOperationException("Real cursor channel failed");

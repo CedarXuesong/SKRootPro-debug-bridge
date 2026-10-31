@@ -139,6 +139,30 @@ internal static class SnapshotTests
         await Task.Delay(Timeout.Infinite);
     }
 
+    public static async Task RunBuildChannelAsync()
+    {
+        await using var peer = new Peer();
+        using var client = new SkpdbClient();
+        await client.ConnectAsync(peer.Options);
+        var legacy = await client.GetInfoAsync();
+        Check(legacy.BuildChannel == "" && legacy.DebugOverlayEnabled, "Legacy module compatibility changed");
+        Check(BuildInfo.UseDebugOverlay(legacy) == BuildInfo.IsCanary, "Legacy HUD policy is wrong");
+        peer.InfoBuildChannel = "Release";
+        var release = await client.GetInfoAsync();
+        Check(release.BuildChannel == "Release" && !release.DebugOverlayEnabled &&
+            !BuildInfo.UseDebugOverlay(release), "Release module must never start a HUD session");
+        peer.InfoBuildChannel = "Canary";
+        var canary = await client.GetInfoAsync();
+        Check(canary.BuildChannel == "Canary" && canary.DebugOverlayEnabled &&
+            BuildInfo.UseDebugOverlay(canary) == BuildInfo.IsCanary, "Canary HUD policy is wrong");
+#if SKPDB_CANARY
+        Check(BuildInfo.Channel == "Canary" && BuildInfo.IsCanary, "Canary constant missing");
+#else
+        Check(BuildInfo.Channel == "Release" && !BuildInfo.IsCanary, "Release constant missing");
+#endif
+        Console.WriteLine($"PASS {BuildInfo.Channel}: module metadata, mixed-channel HUD policy and legacy compatibility");
+    }
+
     public static async Task RunOverlayAsync()
     {
         await using var peer = new Peer();
@@ -224,6 +248,7 @@ internal static class SnapshotTests
         public bool FailCapture, RotateOnce, AlwaysRotate, GateRead;
         public int CleanupCount, DisplayReads, FixedRotation;
         public bool HudSupported = true;
+        public string InfoBuildChannel = "";
         public int HudEnabled, HudUpdates, HudDropNext;
         public ConcurrentQueue<byte[]> HudPackets { get; } = new();
         private int _touchInfoReads;
@@ -355,7 +380,9 @@ internal static class SnapshotTests
                     else if (op == (byte)'B')
                     {
                         if (Interlocked.Exchange(ref _slowNextInfo, 0) == 1) await Task.Delay(350, _stop.Token);
-                        body = Encoding.UTF8.GetBytes("name=snapshot-test\nversion=0.0.0\nservice_port=" + Options.Port);
+                        var channelInfo = InfoBuildChannel.Length == 0 ? "" :
+                            "\nbuild_channel=" + InfoBuildChannel + "\ndebug_overlay=" + (InfoBuildChannel == "Canary" ? "1" : "0");
+                        body = Encoding.UTF8.GetBytes("name=snapshot-test\nversion=0.0.0\nservice_port=" + Options.Port + channelInfo);
                     }
                     else if (op == (byte)'A')
                     {

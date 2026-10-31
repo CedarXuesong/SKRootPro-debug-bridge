@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "common/build_info.h"
 
 // Identity shared by the module descriptor, the capability record and the
 // WebUI. The version is bumped whenever the wire behaviour changes: 0.9.0
@@ -17,9 +18,14 @@
 // TCP move fallback so a lost fast path cannot exhaust server threads; 0.12.0
 // adds the CPU-drawn SurfaceControl cursor that is skipped by screenshots;
 // 0.12.12 refreshes the module descriptor and the WebUI copy.
-#define SKPDB_MODULE_NAME "SKPDB Development Network Bridge"
-#define SKPDB_MODULE_VERSION "0.12.14"
-#define SKPDB_MODULE_DESC "SKPDB 调试桥：root shell、文件传输、无痕内存读写扫描、真实触摸屏注入、截图不可见光标与调试层。不 ptrace、不建 uinput、不挂载；端口按签名 knock 开启，每连接 HMAC 验证。"
+#if SKPDB_CANARY
+#define SKPDB_MODULE_NAME "SKPDB Canary Network Bridge"
+#define SKPDB_MODULE_DESC "SKPDB Canary 调试桥：root shell、文件传输、无痕内存读写扫描、真实触摸屏注入、截图不可见光标与调试层。不 ptrace、不建 uinput、不挂载；端口按签名 knock 开启，每连接 HMAC 验证。"
+#else
+#define SKPDB_MODULE_NAME "SKPDB Network Bridge"
+#define SKPDB_MODULE_DESC "SKPDB 调试桥：root shell、文件传输、无痕内存读写扫描、真实触摸屏注入与截图不可见光标。不 ptrace、不建 uinput、不挂载；端口按签名 knock 开启，每连接 HMAC 验证。"
+#endif
+#define SKPDB_MODULE_VERSION "0.12.15" SKPDB_VERSION_SUFFIX
 #define SKPDB_MODULE_AUTHOR "雪松/CedarXuesong"
 #define SKPDB_MODULE_ID32 "36c8b2dc7a8b4bb6a2b0e0ce54e05f31"
 

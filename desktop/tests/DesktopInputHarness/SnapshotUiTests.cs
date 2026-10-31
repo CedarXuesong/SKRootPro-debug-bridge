@@ -30,22 +30,35 @@ internal static class SnapshotUiTests
             var session = AppSession.Current;
             await session.Client.ExecAsync("fixture ok");
             var window = App.MainWindow!;
+            // AppWindow sizes use physical pixels; keep the fixture usable at high DPI.
+            var scale = window.AppWindow.Size.Width / Math.Max(1, window.ViewportWidthDip);
+            window.AppWindow.Resize(new Windows.Graphics.SizeInt32(
+                (int)Math.Ceiling(1280 * scale), (int)Math.Ceiling(900 * scale)));
             window.Navigate("gamepad");
             var frame = Field<Frame>(window, "ContentFrame");
-            await Until(() => frame.Content is GamepadPage page && Field<TouchDeviceInfo?>(page, "_device") is not null);
+            await Until(() => frame.Content is GamepadPage page && Field<bool>(page, "_pageReady") &&
+                Field<TouchDeviceInfo?>(page, "_device") is not null &&
+                Field<ForegroundWatcher?>(page, "_watcher")?.Package is { } package &&
+                Field<GamepadProfile>(page, "_profile").Package == package &&
+                !Field<bool>(page, "_applyingEnvironment"));
             var page = (GamepadPage)frame.Content;
-            await Until(() => Field<Canvas>(page, "LayoutCanvas").ActualWidth > 20);
+            await Until(() => Field<Canvas>(page, "LayoutCanvas").ActualWidth > 20 &&
+                Field<Canvas>(page, "LayoutCanvas").ActualHeight > 20);
             await CaptureAsync(page);
             var first = Field<ScreenSnapshot?>(page, "_snapshot");
             Check(first is not null, "Capture failed: " + Field<TextBlock>(page, "StatusText").Text);
             var canvas = Field<Canvas>(page, "LayoutCanvas");
+            Check(canvas.Children.OfType<Image>().Any(),
+                $"Snapshot background missing: canvas={canvas.ActualWidth}x{canvas.ActualHeight}, " +
+                $"device={Field<TouchDeviceInfo>(page, "_device")}, snapshot={first}, " +
+                $"status={Field<TextBlock>(page, "SnapshotStatusText").Text}");
             var image = canvas.Children.OfType<Image>().Single();
             Check(image.Source is SoftwareBitmapSource && first!.Width == 1024 && first.Height == 512, "PNG did not decode in WinUI");
             Check(first!.Png.Length == 0, "Compressed PNG retained after decode");
             Check(canvas.Children.IndexOf(image) == 1 && canvas.Children.Count > 2 && !image.IsHitTestVisible,
                 "Snapshot must appear below editable layout and ignore pointer hit testing");
             Console.WriteLine("PASS real WinUI PNG decode and canvas background below interactive overlays");
-            await BetaUiTests.RunAsync(page);
+            await CanaryUiTests.RunAsync(page);
 
             var toggle = Field<ToggleMenuFlyoutItem>(page, "SnapshotVisibleToggle");
             toggle.IsChecked = false;

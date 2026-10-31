@@ -6,6 +6,8 @@
 
 param(
     [string]$Configuration = 'Release',
+    [ValidateSet('Release', 'Canary')]
+    [string]$BuildChannel = 'Release',
     [string]$OutputDirectory = ''
 )
 
@@ -53,7 +55,7 @@ if (Test-Path -LiteralPath $nugetConfig) {
 if ($LASTEXITCODE -ne 0) { throw 'NuGet restore failed' }
 
 & $dotnet publish $project --no-restore -c $Configuration -p:Platform=x64 -r win-x64 `
-    --self-contained false -o $dist -v:minimal
+    --self-contained false -p:BuildChannel=$BuildChannel -o $dist -v:minimal
 if ($LASTEXITCODE -ne 0) { throw 'publish failed' }
 
 # XBF files are generated XAML payloads. The normal MSIX PRI target copies

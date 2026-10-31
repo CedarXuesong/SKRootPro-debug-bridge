@@ -110,6 +110,9 @@ bool WebUiHandler::handleGet(CivetServer*, mg_connection* conn, const std::strin
     if (path == "/" || path == "/index.html") {
         if (request_token_.empty()) { Reply(conn, 500, "无法初始化页面请求"); return true; }
         std::string html = kIndexHtml;
+        const auto badge = html.find("__SKPDB_CHANNEL_BADGE__");
+        if (badge != std::string::npos)
+            html.replace(badge, 23, SKPDB_CANARY ? "<span class=\"badge\">Canary 版</span>" : "");
         const auto marker = html.find("__SKPDB_CSRF__");
         if (marker == std::string::npos) { Reply(conn, 500, "页面资源不完整"); return true; }
         html.replace(marker, 14, request_token_);

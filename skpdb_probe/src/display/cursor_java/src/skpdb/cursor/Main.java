@@ -48,7 +48,7 @@ public final class Main {
         }
         panelTypeface = Typeface.create("sans-serif", Typeface.NORMAL);
         Paint probe = new Paint();
-        probe.setTypeface(panelTypeface); probe.measureText("SKPDB 测试版");
+        probe.setTypeface(panelTypeface); probe.measureText("SKPDB Canary");
     }
 
     private static void report(Throwable error) {
@@ -112,15 +112,15 @@ public final class Main {
         } finally { layer.surface.unlockCanvasAndPost(canvas); }
     }
 
-    private static void panel(Layer layer, String[] lines, boolean beta) throws Exception {
+    private static void panel(Layer layer, String[] lines, boolean canary) throws Exception {
         Canvas canvas = layer.lock();
         try {
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             // Transparent panels retain only a small text shadow for contrast.
             paint.setShadowLayer(2, 0, 1, Color.BLACK);
-            paint.setColor(beta ? 0xFFFFD183 : Color.WHITE);
-            paint.setTextSize(beta ? 26 : 23);
+            paint.setColor(canary ? 0xFFFFD183 : Color.WHITE);
+            paint.setTextSize(canary ? 26 : 23);
             paint.setTypeface(panelTypeface);
             for (int i = 0; i < lines.length; i++) canvas.drawText(lines[i], 12, 29 + i * 29, paint);
         } finally { layer.surface.unlockCanvasAndPost(canvas); }
@@ -151,18 +151,23 @@ public final class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        Layer cursor = null, debug = null, beta = null;
+        Layer cursor = null, debug = null, canary = null;
         try {
-            stage = "initialize fonts";
-            initializeFonts();
+            if (BuildInfo.CANARY) {
+                stage = "initialize fonts";
+                initializeFonts();
+            }
             stage = "create cursor";
             cursor = new Layer("SKPDB Cursor", 64, 64, Integer.MAX_VALUE - 1);
-            stage = "create debug";
-            debug = new Layer("SKPDB Debug", 560, 158, Integer.MAX_VALUE - 2);
-            stage = "create beta";
-            beta = new Layer("SKPDB Beta", 260, 46, Integer.MAX_VALUE - 2);
+            if (BuildInfo.CANARY) {
+                stage = "create debug";
+                debug = new Layer("SKPDB Debug", 560, 158, Integer.MAX_VALUE - 2);
+                stage = "create canary";
+                canary = new Layer("SKPDB Canary", 300, 46, Integer.MAX_VALUE - 2);
+                panel(canary, new String[] { "SKPDB · Canary 版" }, true);
+            }
             stage = "draw initial buffers";
-            arrow(cursor); panel(beta, new String[] { "SKPDB · 测试版" }, true);
+            arrow(cursor);
             System.out.println("READY"); System.out.flush();
             Thread input = new Thread(new Runnable() { public void run() { readCommands(); } }, "skpdb-overlay-input");
             input.setDaemon(true); input.start();
@@ -185,16 +190,16 @@ public final class Main {
                     if (Math.abs(x - renderX) < .35 && Math.abs(y - renderY) < .35) { renderX = x; renderY = y; }
                 }
                 int drawX = (int)Math.round(renderX), drawY = (int)Math.round(renderY);
-                boolean hudVisible = hud != null && hud.visible(System.nanoTime());
+                boolean hudVisible = BuildInfo.CANARY && hud != null && hud.visible(System.nanoTime());
                 boolean newHud = hud != null && hud != rendered;
-                if (newHud && hudVisible) panel(debug, hud.lines(), false);
+                if (BuildInfo.CANARY && newHud && hudVisible) panel(debug, hud.lines(), false);
                 if (drawX != lastX || drawY != lastY || visible != lastVisible || newHud || hudVisible != lastHudVisible) {
                     try (SurfaceControl.Transaction t = new SurfaceControl.Transaction()) {
                         place(t, cursor, drawX, drawY, 1, visible);
-                        if (hud != null) {
+                        if (BuildInfo.CANARY && hud != null) {
                             float scale = hud.scale(), margin = 12 * scale;
                             place(t, debug, margin, margin, scale, hudVisible);
-                            place(t, beta, margin, hud.bottomY(), scale, hudVisible);
+                            place(t, canary, margin, hud.bottomY(), scale, hudVisible);
                         }
                         t.apply();
                     }
@@ -210,7 +215,7 @@ public final class Main {
             report(error);
             throw error;
         } finally {
-            if (beta != null) beta.release();
+            if (canary != null) canary.release();
             if (debug != null) debug.release();
             if (cursor != null) cursor.release();
         }
