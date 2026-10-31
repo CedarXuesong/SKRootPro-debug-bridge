@@ -94,6 +94,12 @@ jobs:
           }
           if ($env:BUILD_CHANNEL -eq 'Canary') { $archive = 'skpdb_probe/skpdb_dev_network-canary.zip' }
           else { $archive = 'skpdb_probe/skpdb_dev_network.zip' }
+          $header = Get-Content skpdb_probe/src/wireless/module_info.h -Raw
+          $base = [regex]::Match($header, '#define SKPDB_MODULE_BASE_VERSION "(\d+\.\d+\.\d+)"').Groups[1].Value
+          $identity = ./tools/build_identity.ps1 -Version $base -BuildChannel $env:BUILD_CHANNEL
+          $published = "skpdb_probe/SKPDB-module-$($identity.FileVersion).zip"
+          Move-Item -LiteralPath $archive -Destination $published
+          $archive = $published
           $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $([IO.Path]::GetFileName($archive))" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
           Compress-Archive -Path LICENSE,THIRD_PARTY_NOTICES.md,docs/third-party -DestinationPath skpdb_probe/SKPDB-module-notices.zip
@@ -101,8 +107,8 @@ jobs:
         with:
           name: module-${{ env.BUILD_CHANNEL }}
           path: |
-            skpdb_probe/skpdb_dev_network*.zip
-            skpdb_probe/skpdb_dev_network*.zip.sha256
+            skpdb_probe/SKPDB-module-*.zip
+            skpdb_probe/SKPDB-module-*.zip.sha256
             skpdb_probe/SKPDB-module-notices.zip
           if-no-files-found: error
           retention-days: 14
@@ -115,6 +121,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           path: artifacts
@@ -125,23 +134,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           BUILD_SHA: ${{ github.sha }}
-          BUILD_NUMBER: ${{ github.run_number }}
           BUILD_ID: ${{ github.run_id }}
-          BUILD_ATTEMPT: ${{ github.run_attempt }}
-        run: |
-          set -euo pipefail
-          channel="${BUILD_CHANNEL,,}"
-          prerelease=()
-          if [[ "$BUILD_CHANNEL" == Canary ]]; then prerelease=(--prerelease); fi
-          printf '%s\n' \
-            "Build channel: $BUILD_CHANNEL" \
-            "Commit: $BUILD_SHA" \
-            "Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_ID" \
-            "" \
-            "Canary builds include the debug overlay. Release builds disable it at compile time." \
-            "Desktop requires .NET 8 Desktop Runtime and Windows App Runtime 1.7." \
-            "Install the module ZIP as-is; reboot to activate the new module." \
-            "Module dependency license notices are in SKPDB-module-notices.zip." > notes.md
-          gh release create "$channel-$BUILD_ID-$BUILD_ATTEMPT" artifacts/* \
-            --target "$BUILD_SHA" --title "$BUILD_CHANNEL #$BUILD_NUMBER" \
-            --notes-file notes.md --latest=false "${prerelease[@]}"
+        run: python3 tools/publish_release.py

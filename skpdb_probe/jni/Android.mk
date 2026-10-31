@@ -9,6 +9,10 @@
 LOCAL_PATH := $(call my-dir)
 SRC := $(LOCAL_PATH)/../src
 
+ifeq ($(wildcard $(SRC)/common/build_revision.h),)
+$(error Run skpdb_probe/build.ps1 to generate the build commit and assets first)
+endif
+
 SKROOT_SDK ?=
 ifeq ($(strip $(SKROOT_SDK)),)
 $(error Pass SKROOT_SDK=/path/to/authorized/sdk)

@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../SkpdbDesktop/BuildInfo.cs" Link="BuildInfo.cs" />
+    <Compile Include="../../SkpdbDesktop/UpdateChecker.cs" Link="UpdateChecker.cs" />
     <Compile Include="../../SkpdbDesktop/AtomicFile.cs" Link="AtomicFile.cs" />
     <Compile Include="../../SkpdbDesktop/SettingsStore.cs" Link="SettingsStore.cs" />
     <Compile Include="../../SkpdbDesktop/Gamepad/SampledInputState.cs" Link="SampledInputState.cs" />

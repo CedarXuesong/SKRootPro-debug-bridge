@@ -16,7 +16,7 @@ GitHub 公开仓库的站内 Fork 权利另见 [发布说明](docs/PUBLISHING.md
 | `tools/` | 源码发布检查与不包含本地数据的导出工具 |
 
 构建与测试见 [BUILDING](docs/BUILDING.md)，连接与断触排查见
-[TROUBLESHOOTING](docs/TROUBLESHOOTING.md)，版本变更见 [CHANGELOG](CHANGELOG.md)。
+[TROUBLESHOOTING](docs/TROUBLESHOOTING.md)，版本与构建记录见仓库 Releases 和提交历史。
 外部依赖说明见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
 模块依赖独立获取的 SKRoot SDK；该 SDK 及其参考工程不包含在本仓库中。

@@ -57,6 +57,25 @@ internal static class CanaryUiTests
         var expectedVisibility = BuildInfo.IsCanary ? Visibility.Visible : Visibility.Collapsed;
         Check(Field<TextBlock>(window, "CanaryBadgeText").Text == "Canary 版" &&
             Field<Border>(window, "CanaryBadge").Visibility == expectedVisibility, "Wrong build channel badge");
+        Check(Field<TextBlock>(window, "DesktopVersionText").Text == BuildInfo.DisplayVersion &&
+            window.Title.Contains(BuildInfo.DisplayVersion) && BuildInfo.ShortCommit.Length == 12,
+            "Desktop title is missing its version or commit");
+        var nextVersion = BuildInfo.BaseVersion + "+ffffffffffff";
+        var update = new AvailableUpdate(nextVersion,
+            new Uri(UpdateChecker.ReleasePrefix + BuildInfo.Channel.ToLowerInvariant() + "-ffffffffffff"));
+        var dialog = (ContentDialog)typeof(UpdatePrompt).GetMethod("CreateUpdateDialog",
+            BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, new object[] { page.XamlRoot, update })!;
+        var shown = dialog.ShowAsync();
+        await Until(() => dialog.IsLoaded);
+        Check(dialog.Title as string == $"发现新的 {BuildInfo.Channel} 版本" &&
+            dialog.Content.ToString()!.Contains(BuildInfo.DisplayVersion) &&
+            dialog.Content.ToString()!.Contains(nextVersion) &&
+            dialog.PrimaryButtonText == "前往更新" && dialog.CloseButtonText == "稍后",
+            "Update prompt is missing channel, versions or actions");
+        await SaveWindowEvidenceAsync(BuildInfo.Channel.ToLowerInvariant() + "-update-prompt");
+        dialog.Hide();
+        await shown;
+        Console.WriteLine($"PASS real {BuildInfo.Channel} update prompt, version text and dismiss");
         Check(nav.IsPaneToggleButtonVisible && nav.PaneDisplayMode == NavigationViewPaneDisplayMode.Left, "Sidebar toggle missing");
         var toggle = Descendants(nav).OfType<Button>().FirstOrDefault(b => b.Name == "TogglePaneButton");
         Check(toggle is not null, "Navigation toggle template button missing");
@@ -72,7 +91,7 @@ internal static class CanaryUiTests
         var rectangle = Field<Windows.Foundation.Rect>(page, "_screenRect");
         var layer = Field<Canvas>(page, "PreviewWatermarkLayer");
         Check(layer.Visibility == expectedVisibility && !layer.IsHitTestVisible && !watermark.IsHitTestVisible &&
-            watermark.Text == "SKPDB · Canary 版", "Wrong build channel watermark");
+            watermark.Text == $"SKPDB · Canary 版\n{BuildInfo.DisplayVersion}", "Wrong build channel watermark");
         Check(!BuildInfo.IsCanary || (watermark.ActualWidth > 50 && watermark.ActualHeight > 10 &&
             watermark.RenderTransform is RotateTransform { Angle: -24 } && bounds.Clip is RectangleGeometry clip &&
             Math.Abs(clip.Rect.Width - rectangle.Width) < 1 && Math.Abs(bounds.Width - rectangle.Width) < 1 &&

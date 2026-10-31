@@ -4,6 +4,7 @@ using System.Text.Json;
 using SkpdbDesktop;
 
 if (args.Contains("--build-channel-test")) { await SnapshotTests.RunBuildChannelAsync(); return; }
+if (args.Contains("--update-test")) { await UpdateTests.RunAsync(); return; }
 if (args.Contains("--self-test")) { PointerRegionTests.Run(); RelayTests.Run(); return; }
 if (args.Contains("--slots-test")) { await DynamicSlotTests.RunAsync(); return; }
 if (args.Contains("--micro-test")) { await MicroLookTests.RunAsync(); return; }

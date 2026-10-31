@@ -1,6 +1,7 @@
 import skpdb.cursor.HudState;
 
 public final class HudStateTest {
+    static final String VERSION = "0.12.15-canary+0123456789ab";
     static void check(boolean value) { if (!value) throw new AssertionError(); }
     static HudState parse(String text, long now) { return new HudState(text.split("\\s+"), now); }
     static void bad(String text) {
@@ -13,8 +14,10 @@ public final class HudStateTest {
                 HudState s = parse("hud 99 1 " + rotation + " 2400 1080 8 10 4 2398 24 " + mode + " 0", 123);
                 check(s.sequence == 99 && s.rotation == rotation && s.active == 8 && s.capacity == 10 && s.pending == 4);
                 check(s.visible(123) && s.visible(123 + HudState.LEASE_NANOS - 1) && !s.visible(123 + HudState.LEASE_NANOS));
-                check(s.lines()[1].contains("输入暂停") && s.lines()[4].contains("239.8") && s.lines()[4].contains("2.4"));
-                check(s.bottomY() > 0 && s.bottomY() + 46 * s.scale() < s.height && 560 * s.scale() < s.width);
+                check(s.lines(VERSION)[0].endsWith(VERSION) && s.lines(VERSION)[1].contains("输入暂停") &&
+                    s.lines(VERSION)[4].contains("239.8") && s.lines(VERSION)[4].contains("2.4"));
+                check(s.bottomY() > 0 && s.bottomY() + HudState.BADGE_HEIGHT * s.scale() < s.height &&
+                    HudState.BADGE_WIDTH * s.scale() < s.width);
             }
         }
         check(!parse("hud 1 0 0 1080 2400 0 10 0 0 0 0 1", 0).visible(1));

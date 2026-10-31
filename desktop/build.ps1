@@ -8,6 +8,7 @@ param(
     [string]$Configuration = 'Release',
     [ValidateSet('Release', 'Canary')]
     [string]$BuildChannel = 'Release',
+    [string]$GitCommit = '',
     [string]$OutputDirectory = ''
 )
 
@@ -15,6 +16,9 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $project = Join-Path $PSScriptRoot 'SkpdbDesktop\SkpdbDesktop.csproj'
 $stubProject = Join-Path $PSScriptRoot 'build-stubs\AppxTasks\AppxTasks.csproj'
+$projectXml = [xml][IO.File]::ReadAllText($project)
+$baseVersion = $projectXml.SelectSingleNode('/Project/PropertyGroup/Version[not(@Condition)]').InnerText
+$identity = & (Join-Path $root 'tools/build_identity.ps1') -Version $baseVersion -BuildChannel $BuildChannel -GitCommit $GitCommit
 $dist = Join-Path $root 'dist\SKPDB'
 if ($OutputDirectory) {
     $dist = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
@@ -55,7 +59,7 @@ if (Test-Path -LiteralPath $nugetConfig) {
 if ($LASTEXITCODE -ne 0) { throw 'NuGet restore failed' }
 
 & $dotnet publish $project --no-restore -c $Configuration -p:Platform=x64 -r win-x64 `
-    --self-contained false -p:BuildChannel=$BuildChannel -o $dist -v:minimal
+    --self-contained false -p:BuildChannel=$BuildChannel -p:GitCommit=$($identity.Commit) -o $dist -v:minimal
 if ($LASTEXITCODE -ne 0) { throw 'publish failed' }
 
 # XBF files are generated XAML payloads. The normal MSIX PRI target copies

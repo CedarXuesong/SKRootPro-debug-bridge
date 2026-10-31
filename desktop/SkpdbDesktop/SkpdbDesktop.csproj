@@ -13,6 +13,7 @@
     <Version Condition="'$(BuildChannel)' == 'Canary'">0.12.43-canary</Version>
     <AssemblyVersion>0.12.43.0</AssemblyVersion>
     <FileVersion>0.12.43.0</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <UseWinUI>true</UseWinUI>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <WindowsPackageType>None</WindowsPackageType>
@@ -32,6 +33,22 @@
   <Target Name="ValidateBuildChannel" BeforeTargets="PrepareForBuild">
     <Error Condition="'$(BuildChannel)' != 'Release' and '$(BuildChannel)' != 'Canary'"
            Text="BuildChannel must be Release or Canary." />
+  </Target>
+  <Target Name="ResolveBuildCommit" BeforeTargets="GetAssemblyAttributes">
+    <Exec Condition="'$(GitCommit)' == ''"
+          Command="git -C &quot;$(MSBuildProjectDirectory)&quot; rev-parse HEAD"
+          ConsoleToMSBuild="true" StandardOutputImportance="Low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="GitCommit" />
+    </Exec>
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(GitCommit)', '^[0-9a-fA-F]{40}$'))"
+           Text="GitCommit must be a full 40-character Git commit hash." />
+    <PropertyGroup>
+      <GitShortCommit>$([System.String]::Copy('$(GitCommit)').Substring(0, 12).ToLowerInvariant())</GitShortCommit>
+      <InformationalVersion>$(Version)+$(GitShortCommit)</InformationalVersion>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyMetadata Include="GitCommit" Value="$(GitCommit)" />
+    </ItemGroup>
   </Target>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.7.250606001" />

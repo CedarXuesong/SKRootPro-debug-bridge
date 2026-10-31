@@ -20,6 +20,8 @@
                 </Border>
                 <TextBlock Text="SKPDB" FontSize="14" FontWeight="SemiBold"
                            VerticalAlignment="Center" />
+                <TextBlock x:Name="DesktopVersionText" FontSize="11" VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Border x:Name="CanaryBadge" Visibility="Collapsed"
                         Background="#26E8AD46" BorderBrush="#80E8AD46" BorderThickness="1"
                         CornerRadius="5" Padding="7,2" VerticalAlignment="Center">

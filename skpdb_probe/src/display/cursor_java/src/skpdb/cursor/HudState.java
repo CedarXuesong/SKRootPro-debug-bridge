@@ -5,6 +5,7 @@ import java.util.Locale;
 /** Immutable protocol state, kept Android-independent for offline regression. */
 public final class HudState {
     public static final long LEASE_NANOS = 6_000_000_000L;
+    public static final int BADGE_WIDTH = 560, BADGE_HEIGHT = 76;
     public final long sequence, received;
     public final int enabled, rotation, width, height, active, capacity, pending, hz, rtt, mode, input;
 
@@ -24,9 +25,9 @@ public final class HudState {
 
     public boolean visible(long now) { return enabled == 1 && now - received < LEASE_NANOS; }
     public float scale() { return Math.max(.25f, Math.min(1.5f, Math.min(width, height) / 720f)); }
-    public float bottomY() { return Math.max(0, height - 62 * scale()); }
-    public String[] lines() {
-        return new String[] { "SKPDB 调试 0.12.13",
+    public float bottomY() { return Math.max(0, height - (BADGE_HEIGHT + 16) * scale()); }
+    public String[] lines(String version) {
+        return new String[] { "SKPDB 调试 " + version,
             new String[] { "鼠标模式", "视角模式", "按住观察" }[mode] + (input == 1 ? " · 输入活动" : " · 输入暂停"),
             width + " × " + height + " · 旋转 " + rotation * 90 + "°",
             "触点 " + active + "/" + capacity + " · 等待 " + pending,

@@ -703,6 +703,7 @@ std::string Bridge::InfoReport() {
     text += "name=" + std::string(kModuleName) + "\n";
     text += "version=" + std::string(kModuleVersion) + "\n";
     text += "build_channel=" SKPDB_BUILD_CHANNEL "\n";
+    text += "build_commit=" SKPDB_GIT_COMMIT "\n";
     text += "debug_overlay=" + std::to_string(SKPDB_CANARY) + "\n";
     text += "id32=" + std::string(kModuleId32) + "\n";
     text += "pid=" + std::to_string(getpid()) + "\n";

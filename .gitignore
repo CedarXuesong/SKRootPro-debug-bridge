@@ -51,6 +51,7 @@ sqsystem-license-takeover/
 System.Management.Automation.Internal.Host.InternalHost
 
 # Recreated from source by skpdb_probe/build.ps1
+skpdb_probe/src/common/build_revision.h
 skpdb_probe/src/display/cursor_dex.h
 skpdb_probe/src/input/gyro_payload_bytes.h
 skpdb_probe/src/input/touch_guard_bytes.h

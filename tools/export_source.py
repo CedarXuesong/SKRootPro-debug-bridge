@@ -1,6 +1,7 @@
 """Export reviewed source without Git history, binaries, user data or SDKs."""
 import hashlib
 import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -16,6 +17,7 @@ def main():
     out.mkdir(exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     archive = out / f"SKPDB-source-{stamp}.zip"
+    commit = subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip()
     manifest = []
     with ZipFile(archive, "x", compression=ZIP_DEFLATED) as zipfile:
         for path in source_files(ROOT):
@@ -24,6 +26,7 @@ def main():
             zipfile.writestr("SKPDB-source/" + name, data)
             manifest.append({"path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
         zipfile.writestr("SKPDB-source/SOURCE-MANIFEST.json", json.dumps(manifest, indent=2))
+        zipfile.writestr("SKPDB-source/SOURCE-COMMIT.txt", commit + "\n")
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii")
     print(f"Exported {len(manifest)} source files: {archive}\nSHA256: {digest}")

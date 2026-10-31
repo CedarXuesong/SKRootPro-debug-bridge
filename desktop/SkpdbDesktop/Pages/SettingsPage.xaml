@@ -54,6 +54,12 @@
                     <TextBlock Text="关于 SKPDB" FontSize="16" FontWeight="SemiBold" />
                     <TextBlock x:Name="VersionText"
                                Style="{StaticResource BodyTextBlockStyle}" />
+                    <Button x:Name="CheckUpdatesButton" Click="CheckUpdates_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE895;" FontSize="14" />
+                            <TextBlock Text="检查更新" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Border>
         </StackPanel>

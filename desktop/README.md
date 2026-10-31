@@ -56,7 +56,7 @@ Canary 版本号附带 `-canary`；GitHub 自动构建与下载见 [BUILDING](..
 - 陀螺仪普通队列按 UID 支持 type 4/16/11/15，覆盖双轴和屏幕方向；Direct Channel 注入仍未实现。
 - 正式入口的离线预览仅在设置的开发选项中。不会默认启用 Microsoft-only DLL 签名策略。
 
-使用及分发受 `../LICENSE` 约束。旧本机审查记录不随公开源码分发，当前变更见 `../CHANGELOG.md`。
+使用及分发受 `../LICENSE` 约束。版本与构建记录见仓库 Releases 和提交历史。
 
 ## 连接
 

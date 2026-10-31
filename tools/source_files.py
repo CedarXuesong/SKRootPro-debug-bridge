@@ -2,7 +2,7 @@
 from pathlib import Path
 import os
 
-ROOT_FILES = {"README.md", "LICENSE", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md",
+ROOT_FILES = {"README.md", "LICENSE", "CONTRIBUTING.md", "SECURITY.md",
               "THIRD_PARTY_NOTICES.md", "global.json", ".gitignore", ".gitattributes", ".editorconfig", ".clang-format"}
 ROOTS = {"desktop", "host", "skpdb_probe", "docs", "tools", ".github"}
 SUFFIXES = {".cs", ".csproj", ".xaml", ".manifest", ".sln", ".props", ".targets",
@@ -10,7 +10,7 @@ SUFFIXES = {".cs", ".csproj", ".xaml", ".manifest", ".sln", ".props", ".targets"
             ".mk", ".ld", ".config", ".xml", ".md", ".txt", ".json", ".yml", ".yaml"}
 EXCLUDED_PARTS = {"bin", "obj", "build", "libs", "libs-experimental", "data", "__pycache__", "screenshots",
                   "node_modules", ".vs", ".idea"}
-GENERATED = {"cursor_dex.h", "gyro_payload_bytes.h", "touch_guard_bytes.h", "webui_assets.h"}
+GENERATED = {"build_revision.h", "cursor_dex.h", "gyro_payload_bytes.h", "touch_guard_bytes.h", "webui_assets.h"}
 
 def source_files(root: Path):
     candidates = [root / name for name in ROOT_FILES if (root / name).is_file()]

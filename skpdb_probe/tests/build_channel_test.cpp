@@ -36,6 +36,9 @@ int main() {
     Check(skpdb::CursorSet(20, 30, true).ok && moves == 1);
     Check(skpdb::CursorDestroy().ok);
     Check(std::string(skpdb::wireless::kModuleVersion) ==
-          (SKPDB_CANARY ? "0.12.15-canary" : "0.12.15"));
+          std::string(SKPDB_MODULE_BASE_VERSION) + SKPDB_VERSION_SUFFIX + "+" + SKPDB_GIT_SHORT_COMMIT);
+    Check(std::string(SKPDB_MODULE_UPDATE_URL) ==
+          std::string("https://github.com/CedarXuesong/SKRootPro-debug-bridge/releases/download/updates/") +
+          (SKPDB_CANARY ? "canary.json" : "release.json"));
     std::cout << "PASS " << SKPDB_BUILD_CHANNEL << ": HUD policy, cursor and identity\n";
 }

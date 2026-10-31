@@ -141,6 +141,10 @@ internal static class SnapshotTests
 
     public static async Task RunBuildChannelAsync()
     {
+        Check(BuildInfo.ShortCommit.Length == 12 &&
+            BuildInfo.ShortCommit.All(Uri.IsHexDigit) &&
+            BuildInfo.DisplayVersion == $"{BuildInfo.BaseVersion}+{BuildInfo.ShortCommit}",
+            "Version must include a twelve-character source commit");
         await using var peer = new Peer();
         using var client = new SkpdbClient();
         await client.ConnectAsync(peer.Options);

@@ -68,7 +68,9 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        RootGrid.Loaded += CheckForUpdatesOnLoaded;
         CanaryBadge.Visibility = BuildInfo.IsCanary ? Visibility.Visible : Visibility.Collapsed;
+        DesktopVersionText.Text = BuildInfo.DisplayVersion;
         ContentFrame.Navigated += (_, e) => { if (e.Content is GamepadPage page) _gamepadPage = page; };
         AppWindow.Closing += (closingWindow, args) =>
         {
@@ -77,7 +79,7 @@ public sealed partial class MainWindow : Window
             _ = CloseAfterCleanupAsync();
         };
         Instance = this;
-        Title = BuildInfo.IsCanary ? "SKPDB Canary" : "SKPDB";
+        Title = $"SKPDB {BuildInfo.DisplayVersion}";
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
@@ -87,6 +89,12 @@ public sealed partial class MainWindow : Window
         Nav.SelectedItem = Nav.MenuItems[0];
         ContentFrame.Navigate(typeof(HomePage));
         Closed += (_, _) => AppSession.Current.Client.Dispose();
+    }
+
+    private async void CheckForUpdatesOnLoaded(object sender, RoutedEventArgs e)
+    {
+        RootGrid.Loaded -= CheckForUpdatesOnLoaded;
+        await UpdatePrompt.CheckAsync(RootGrid.XamlRoot);
     }
 
     public Task CloseAfterCleanupAsync() => _closingTask ??= CloseCoreAsync();

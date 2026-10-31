@@ -2,10 +2,14 @@ param(
     [string]$AndroidSdk = $env:ANDROID_HOME,
     [string]$Jdk = $env:JAVA_HOME,
     [ValidateSet('Release', 'Canary')]
-    [string]$BuildChannel = 'Release'
+    [string]$BuildChannel = 'Release',
+    [string]$GitCommit = ''
 )
 $ErrorActionPreference = 'Stop'
 $moduleRoot = Split-Path -Parent $PSScriptRoot
+$moduleInfo = [IO.File]::ReadAllText((Join-Path $moduleRoot 'src/wireless/module_info.h'))
+$baseVersion = [regex]::Match($moduleInfo, '#define SKPDB_MODULE_BASE_VERSION "([^"]+)"').Groups[1].Value
+$identity = & (Join-Path (Split-Path -Parent $moduleRoot) 'tools/build_identity.ps1') -Version $baseVersion -BuildChannel $BuildChannel -GitCommit $GitCommit
 $cursorSources = @(Get-ChildItem -LiteralPath (Join-Path $moduleRoot 'src/display/cursor_java/src/skpdb/cursor') -Filter '*.java' | ForEach-Object FullName)
 $cursorRoot = Join-Path $moduleRoot "obj/cursor-java/$BuildChannel"
 $cursorClasses = Join-Path $cursorRoot 'classes'
@@ -17,7 +21,7 @@ New-Item -ItemType Directory -Force $cursorClasses,$cursorDex,$generated | Out-N
 $canary = if ($BuildChannel -eq 'Canary') { 'true' } else { 'false' }
 $buildInfo = Join-Path $generated 'BuildInfo.java'
 [IO.File]::WriteAllText($buildInfo,
-    "package skpdb.cursor; final class BuildInfo { static final boolean CANARY = $canary; }",
+    "package skpdb.cursor; final class BuildInfo { static final boolean CANARY = $canary; static final String VERSION = `"$($identity.Version)`"; }",
     [Text.Encoding]::ASCII)
 $staleClasses = @(Get-ChildItem -LiteralPath $cursorClasses -Recurse -File -Filter '*.class')
 $staleClasses | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force }
@@ -34,6 +38,7 @@ $cursorBytes = [IO.File]::ReadAllBytes((Join-Path $cursorDex 'classes.dex'))
 $header = [Text.StringBuilder]::new()
 [void]$header.AppendLine('// Generated from Main.java by tools/build_cursor.ps1; do not edit by hand.')
 [void]$header.AppendLine("static constexpr bool kCursorDexCanary = $canary;")
+[void]$header.AppendLine("static constexpr char kCursorDexGitCommit[] = `"$($identity.Commit)`";")
 [void]$header.AppendLine('static const unsigned char kCursorDex[] = {')
 for ($i = 0; $i -lt $cursorBytes.Length; $i++) {
     if ($i % 12 -eq 0) { [void]$header.Append('    ') }

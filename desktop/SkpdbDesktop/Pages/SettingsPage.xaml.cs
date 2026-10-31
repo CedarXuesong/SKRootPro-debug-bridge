@@ -8,7 +8,7 @@ public sealed partial class SettingsPage : Page
     public SettingsPage()
     {
         InitializeComponent();
-        VersionText.Text = $"SKPDB {typeof(App).Assembly.GetName().Version?.ToString(3)}";
+        VersionText.Text = $"SKPDB {BuildInfo.DisplayVersion}";
         Loaded += (_, _) =>
         {
             var settings = SettingsStore.Load();
@@ -23,6 +23,13 @@ public sealed partial class SettingsPage : Page
         if (App.MainWindow is not { } window) return;
         window.OfflinePreviewRequested = true;
         window.Navigate("gamepad");
+    }
+
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        CheckUpdatesButton.IsEnabled = false;
+        try { await UpdatePrompt.CheckAsync(XamlRoot, interactive: true); }
+        finally { CheckUpdatesButton.IsEnabled = true; }
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)

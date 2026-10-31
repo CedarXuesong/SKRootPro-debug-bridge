@@ -12,12 +12,15 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 #include "display/cursor_dex.h"
 #include "common/build_info.h"
 
 static_assert(kCursorDexCanary == bool(SKPDB_CANARY),
               "Regenerate the cursor DEX with the same BuildChannel as the native module");
+static_assert(std::string_view(kCursorDexGitCommit) == SKPDB_GIT_COMMIT,
+              "Regenerate the cursor DEX for the current native build commit");
 
 namespace skpdb {
 namespace {
@@ -168,6 +171,7 @@ std::string CursorSurfaceReport() {
         std::chrono::steady_clock::now() - g_overlay_updated).count();
     return std::string("renderer=") + (g_started ? "ready\n" : "stopped\n") +
         "debug_overlay=" + std::to_string(SKPDB_CANARY) + "\n" +
+        "build_commit=" SKPDB_GIT_COMMIT "\n" +
         "cursor_visible=" + (g_started && g_cursor_visible ? "1\n" : "0\n") +
         "hud_visible=" + (g_started && g_overlay.enabled && age < 6000 ? "1\n" : "0\n") +
         "hud_width=" + std::to_string(g_overlay.width) + "\nhud_height=" + std::to_string(g_overlay.height) +

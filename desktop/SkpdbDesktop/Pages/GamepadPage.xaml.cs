@@ -101,6 +101,7 @@ public sealed partial class GamepadPage : Page
     {
         InitializeComponent();
         PreviewWatermarkLayer.Visibility = BuildInfo.IsCanary ? Visibility.Visible : Visibility.Collapsed;
+        PreviewWatermark.Text = $"SKPDB · Canary 版\n{BuildInfo.DisplayVersion}";
         _engine.Changed += Engine_Changed;
         _engine.Log += (_, message) =>
         {
@@ -2218,7 +2219,7 @@ public sealed partial class GamepadPage : Page
         PreviewWatermarkBounds.Width = rectW;
         PreviewWatermarkBounds.Height = rectH;
         PreviewWatermarkClip.Rect = new Rect(0, 0, rectW, rectH);
-        PreviewWatermark.FontSize = Math.Clamp(Math.Min(rectW / 7.5, rectH / 3.5), 14, 60);
+        PreviewWatermark.FontSize = Math.Clamp(Math.Min(rectW / 22, rectH / 8), 10, 60);
         ConfigureLiveTraces();
         CanvasTraceView.SetScreenRect(_screenRect);
 

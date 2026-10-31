@@ -10,11 +10,15 @@ param(
     [string]$Jdk = $env:JAVA_HOME,
     [ValidateSet('Release', 'Canary')]
     [string]$BuildChannel = 'Release',
+    [string]$GitCommit = '',
     [switch]$ExperimentalTouchGuard
 )
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
+$moduleInfo = [IO.File]::ReadAllText((Join-Path $root 'src/wireless/module_info.h'))
+$baseVersion = [regex]::Match($moduleInfo, '#define SKPDB_MODULE_BASE_VERSION "([^"]+)"').Groups[1].Value
+$identity = & (Join-Path (Split-Path -Parent $root) 'tools/build_identity.ps1') -Version $baseVersion -BuildChannel $BuildChannel -GitCommit $GitCommit
 if (-not $Ndk -or -not $Sdk -or -not $Jdk) { throw 'Set ANDROID_NDK_ROOT, SKROOT_SDK_ROOT and JAVA_HOME, or pass -Ndk -Sdk -Jdk' }
 $ndkBuild = Join-Path $Ndk 'ndk-build.cmd'
 
@@ -26,10 +30,12 @@ if (-not (Test-Path -LiteralPath (Join-Path $Sdk 'lib\libkernel_module_kit_stati
 }
 
 # ndk-build runs under GNU make, which is happier with forward slashes.
+$revision = "#pragma once`n#define SKPDB_GIT_COMMIT `"$($identity.Commit)`"`n#define SKPDB_GIT_SHORT_COMMIT `"$($identity.ShortCommit)`"`n"
+[IO.File]::WriteAllText((Join-Path $root 'src/common/build_revision.h'), $revision, [Text.Encoding]::ASCII)
 & (Join-Path $root 'tools/build_webui.ps1')
 & (Join-Path $root 'tools/build_touch_guard.ps1') -Ndk $Ndk
 & (Join-Path $root 'tools/build_gyro.ps1') -Ndk $Ndk
-& (Join-Path $root 'tools/build_cursor.ps1') -AndroidSdk (Split-Path -Parent (Split-Path -Parent $Ndk)) -Jdk $Jdk -BuildChannel $BuildChannel
+& (Join-Path $root 'tools/build_cursor.ps1') -AndroidSdk (Split-Path -Parent (Split-Path -Parent $Ndk)) -Jdk $Jdk -BuildChannel $BuildChannel -GitCommit $identity.Commit
 
 $guardFlag = if ($ExperimentalTouchGuard) { 1 } else { 0 }
 $canaryFlag = if ($BuildChannel -eq 'Canary') { 1 } else { 0 }

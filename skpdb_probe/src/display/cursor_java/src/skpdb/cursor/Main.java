@@ -161,10 +161,10 @@ public final class Main {
             cursor = new Layer("SKPDB Cursor", 64, 64, Integer.MAX_VALUE - 1);
             if (BuildInfo.CANARY) {
                 stage = "create debug";
-                debug = new Layer("SKPDB Debug", 560, 158, Integer.MAX_VALUE - 2);
+                debug = new Layer("SKPDB Debug " + BuildInfo.VERSION, 560, 158, Integer.MAX_VALUE - 2);
                 stage = "create canary";
-                canary = new Layer("SKPDB Canary", 300, 46, Integer.MAX_VALUE - 2);
-                panel(canary, new String[] { "SKPDB · Canary 版" }, true);
+                canary = new Layer("SKPDB Canary " + BuildInfo.VERSION, HudState.BADGE_WIDTH, HudState.BADGE_HEIGHT, Integer.MAX_VALUE - 2);
+                panel(canary, new String[] { "SKPDB · Canary 版", BuildInfo.VERSION }, true);
             }
             stage = "draw initial buffers";
             arrow(cursor);
@@ -192,7 +192,7 @@ public final class Main {
                 int drawX = (int)Math.round(renderX), drawY = (int)Math.round(renderY);
                 boolean hudVisible = BuildInfo.CANARY && hud != null && hud.visible(System.nanoTime());
                 boolean newHud = hud != null && hud != rendered;
-                if (BuildInfo.CANARY && newHud && hudVisible) panel(debug, hud.lines(), false);
+                if (BuildInfo.CANARY && newHud && hudVisible) panel(debug, hud.lines(BuildInfo.VERSION), false);
                 if (drawX != lastX || drawY != lastY || visible != lastVisible || newHud || hudVisible != lastHudVisible) {
                     try (SurfaceControl.Transaction t = new SurfaceControl.Transaction()) {
                         place(t, cursor, drawX, drawY, 1, visible);
