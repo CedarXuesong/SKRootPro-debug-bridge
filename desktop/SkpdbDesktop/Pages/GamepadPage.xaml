@@ -477,10 +477,10 @@
                         <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"
                                 Margin="0,6" />
                         <TextBlock Text="陀螺仪注入" FontWeight="SemiBold" />
-                        <ToggleSwitch x:Name="GyroToggle" Header="当前应用陀螺仪"
+                        <ToggleSwitch x:Name="GyroToggle" Header="整机陀螺仪（HAL）"
                                       OnContent="开" OffContent="关"
                                       Toggled="GyroToggle_Toggled" />
-                        <TextBlock Text="按应用 UID 隔离；支持普通事件队列。Direct Channel 尚未覆盖。" TextWrapping="Wrap" Style="{StaticResource MetricLabelStyle}" />
+                        <TextBlock Text="HAL 全局输出，无应用定向；影响所有普通传感器队列。不是内核驱动 hook，DSP Direct Channel 尚未覆盖。" TextWrapping="Wrap" Style="{StaticResource MetricLabelStyle}" />
                     </StackPanel>
                 </ScrollViewer>
             </Border>

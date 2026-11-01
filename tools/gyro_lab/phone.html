@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="lab-token" content="__TOKEN__">
+  <title>SKPDB 手机陀螺仪实测</title>
+  <link rel="stylesheet" href="/phone.css">
+  <script src="/phone.js" defer></script>
+</head>
+<body>
+  <header><h1>陀螺仪实测</h1><span id="status">等待传感器</span></header>
+  <main>
+    <div class="commands"><button id="start">开始读取</button><button id="stop" disabled>停止读取</button></div>
+    <p id="source">DeviceMotion · 手机浏览器</p>
+    <section class="axes" aria-label="实际角速度">
+      <div><span>X · alpha</span><strong id="x">—</strong></div>
+      <div><span>Y · beta</span><strong id="y">—</strong></div>
+      <div><span>Z · gamma</span><strong id="z">—</strong></div>
+    </section>
+    <div class="units">rad/s <span id="frequency">0 Hz</span></div>
+    <canvas id="plot" aria-label="手机浏览器实际陀螺仪曲线"></canvas>
+    <div class="legend"><span class="x">X</span><span class="y">Y</span><span class="z">Z</span></div>
+    <dl><div><dt>真实事件</dt><dd id="count">0</dd></div><div><dt>页面状态</dt><dd id="visibility">前台</dd></div><div><dt>测试阶段</dt><dd id="phase">尚未开始</dd></div><div><dt>数据回传</dt><dd id="upload">连接中</dd></div></dl>
+    <p id="error" role="alert"></p>
+  </main>
+  <footer>Android Chromium 轴序 · 手机实际传感器事件</footer>
+</body>
+</html>

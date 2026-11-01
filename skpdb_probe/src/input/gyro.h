@@ -5,14 +5,10 @@
 
 namespace skpdb {
 
-// Userspace gyro injection into the framework sensor dispatcher.
-//
-// The gyroscope of the target device is not necessarily visible to the Linux
-// kernel: on Qualcomm SSC devices the samples are produced inside the sensor
-// DSP and reach system_server through the vendor HAL. The only common point
-// for ordinary event queues is SensorService dispatch. Only the selected UID's
-// private copy is transformed (types 4/16/11/15). Direct-report buffers are not
-// intercepted by this backend and must not be advertised as covered.
+// Device-wide gyro injection at the verified Qualcomm QSH vendor HAL output.
+// This runs before SensorService fan-out, without app/UID selection. It is not
+// a Linux sensor driver hook: SSC/DSP direct-report buffers bypass this output
+// and remain explicitly unsupported.
 struct GyroStatus {
     bool installed = false;
     uint32_t pid = 0;
@@ -33,7 +29,8 @@ struct GyroStatus {
     std::string writer;
 };
 
-// Validates ownership/layout and arms a fresh stream for an explicit UID.
+// Validates ownership/layout and arms a device-wide stream. Nonzero UID requests
+// are rejected so old clients cannot silently install a different scope.
 GyroStatus GyroInstall(std::string &error, uint32_t uid = 0);
 bool GyroDisarm(std::string &error, uint32_t expected_stream = 0);
 bool GyroApplyPacket(uint32_t stream, uint32_t sequence, float rx, float ry, float rz, uint64_t received_ns,
@@ -42,7 +39,7 @@ bool GyroApplyPacket(uint32_t stream, uint32_t sequence, float rx, float ry, flo
 // Restores the patched instruction and disables the state block.
 GyroStatus GyroRemove(std::string &error);
 
-// Reads the live hook state from system_server.
+// Reads the live hook state from the vendor sensors HAL.
 GyroStatus GyroQuery(std::string &error);
 
 // Publishes a CLOCK_BOOTTIME lease using a seqlock and confirms its version.

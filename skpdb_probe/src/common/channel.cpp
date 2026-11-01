@@ -645,8 +645,9 @@ std::vector<uint8_t> GyroRequest(const std::vector<uint8_t>& request) {
     if (action == 0) {
         status = GyroQuery(error);
     } else if (action == 1) {
-        if (request.size() != 6) return ErrorResponse(opcode::kGyro, "gyro install requires target UID");
-        status = GyroInstall(error, GetU32(request.data() + 2));
+        if (request.size() != 2 && request.size() != 6)
+            return ErrorResponse(opcode::kGyro, "invalid global HAL install request");
+        status = GyroInstall(error, request.size() == 6 ? GetU32(request.data() + 2) : 0);
     } else if (action == 2) {
         status = GyroRemove(error);
     } else if (action == 7) {
@@ -709,7 +710,7 @@ std::vector<uint8_t> GyroRequest(const std::vector<uint8_t>& request) {
     response.insert(response.end(), text, text + std::strlen(text));
     const std::string capabilities = "protocol=2\ntarget_uid=" + std::to_string(status.uid) +
         "\nstream=" + std::to_string(status.stream) + "\nenabled=" + (status.enabled ? "1" : "0") +
-        "\nwriter=" + status.writer + "\nsensor_types=4,16,11,15\nscope=uid-private-copy\ndirect_channel=unsupported\n";
+        "\nwriter=" + status.writer + "\nsensor_types=4,16,11,15\nscope=device-hal\nlayer=vendor-hal\nbackend=qsh-post-events\ndirect_channel=unsupported\n";
     response.insert(response.end(), capabilities.begin(), capabilities.end());
     if (!status.error.empty()) {
         response.push_back('\n');

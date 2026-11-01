@@ -731,7 +731,7 @@ std::string Bridge::InfoReport() {
         text += std::string("gyro_installed=") + (gyro.installed ? "1\n" : "0\n");
         text += "gyro_hits=" + std::to_string(gyro.hits) + "\n";
         text += "gyro_updates=" + std::to_string(gyro.updates) + "\n";
-        text += "gyro_protocol=2\ngyro_sensor_types=4,16,11,15\ngyro_direct_channel=unsupported\n";
+        text += "gyro_protocol=2\ngyro_scope=device-hal\ngyro_layer=vendor-hal\ngyro_sensor_types=4,16,11,15\ngyro_direct_channel=unsupported\n";
         text += "gyro_target_uid=" + std::to_string(gyro.uid) + "\ngyro_writer=" + gyro.writer + "\n";
         text += std::string("gyro_enabled=") + (gyro.enabled ? "1\n" : "0\n");
     }

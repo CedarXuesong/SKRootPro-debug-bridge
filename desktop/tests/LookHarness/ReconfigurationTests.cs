@@ -120,6 +120,7 @@ internal static class ReconfigurationTests
         public readonly ConcurrentQueue<TouchBatchEvent> Events = new();
         public TaskCompletionSource? BatchEntered, BatchProceed;
         public bool RejectNextRelease, GateNextRelease, StallQuery;
+        public Func<byte[], string>? GyroResponse;
         public string Package = "test.start";
         public TaskCompletionSource ReleaseGated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseProceed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -166,6 +167,8 @@ internal static class ReconfigurationTests
                     byte[] body = [];
                     string? error = null;
                     if (op == (byte)'K') body = Encoding.ASCII.GetBytes("PONG");
+                    if (op == (byte)'Z' && GyroResponse is { } gyro)
+                        body = Encoding.UTF8.GetBytes(gyro(frame));
                     if (op == (byte)'E')
                     {
                         if (StallQuery)

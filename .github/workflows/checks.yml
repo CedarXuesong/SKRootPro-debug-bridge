@@ -17,6 +17,10 @@ jobs:
           python-version: '3.12'
       - run: python tools/check_repository.py
       - run: python tools/test_publish_release.py
+      - run: python tools/gyro_lab/test_measure.py
+      - run: python tools/gyro_lab/test_server.py
+      - run: g++ -std=c++17 -O2 -Wall -Wextra -Werror skpdb_probe/tests/gyro_payload_test.cpp skpdb_probe/src/input/gyro_payload.cpp -o /tmp/gyro_payload_test
+      - run: /tmp/gyro_payload_test
       - run: g++ -std=c++17 -O2 skpdb_probe/tests/touch_guard_test.cpp skpdb_probe/src/input/touch_guard_payload.cpp -o /tmp/touch_guard_test
       - run: /tmp/touch_guard_test
       - run: g++ -std=c++17 -O2 -Wall -Wextra -Werror skpdb_probe/tests/touch_guard_hook_test.cpp -o /tmp/touch_guard_hook_test

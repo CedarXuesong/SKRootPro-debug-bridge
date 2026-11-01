@@ -599,6 +599,9 @@ public sealed partial class GamepadPage : Page
 
     private void UpdateMetrics()
     {
+        GyroToggle.Header = _engine.GyroMode
+            ? (_engine.GyroEventsConfirmed ? "整机 HAL 陀螺仪 · 已收到事件" : "整机 HAL 陀螺仪 · 等待事件")
+            : "整机陀螺仪（HAL）";
         if(_engine.IsRunning&&GyroToggle.IsEnabled&&GyroToggle.IsOn!=_engine.GyroMode)
         {
             var updating=_updatingUi;_updatingUi=true;GyroToggle.IsOn=_engine.GyroMode;_updatingUi=updating;
@@ -1403,7 +1406,7 @@ public sealed partial class GamepadPage : Page
             if(!_engine.IsRunning){targetProfile.GyroEnabled=requested;SaveCollection();return;}
             await _engine.SetGyroModeAsync(requested);
             targetProfile.GyroEnabled=requested;SaveCollection();
-            SetStatus(requested?"陀螺仪已确认启用；Direct Channel 尚未覆盖":"已回到触摸视角");
+            SetStatus(requested?"整机 HAL 数据流已建立，正在验证实际事件":"已回到触摸视角");
         }
         catch(Exception error)
         {

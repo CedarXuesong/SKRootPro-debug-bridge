@@ -284,20 +284,20 @@ bool Padding(const std::vector<MapLine> &maps, const std::vector<Elf64_Phdr> &ph
     }
     return false;
 }
-bool UidMember(const std::string &file, uint32_t pid, uint64_t base, uint32_t &offset, std::string &error) {
+bool HalLayout(const std::string &file, uint32_t pid, uint64_t base, std::string &error) {
     uint64_t symbol = 0;
-    if (!ResolveSymbol(file, "_ZN7android13SensorService21SensorEventConnectionC1E", symbol, error))
+    if (!ResolveSymbol(file, "_ZN6sensor6submitEv", symbol, error))
         return false;
     std::vector<uint8_t> code;
-    if (!Read(pid, base + symbol, 1024, code, error))
+    if (!Read(pid, base + symbol, 512, code, error))
         return false;
-    if (!gyro_layout::UidOffset(code, offset)) {
-        error = "cannot verify SensorEventConnection UID member; refusing guessed offsets";
+    if (!gyro_layout::HalEventStride80(code)) {
+        error = "cannot verify QSH HAL event stride; refusing an unknown vendor ABI";
         return false;
     }
     return true;
 }
-std::vector<uint8_t> Wrapper(uint64_t cave, uint64_t state, uint64_t resume, uint32_t uidOffset,
+std::vector<uint8_t> Wrapper(uint64_t cave, uint64_t state, uint64_t resume,
                              uint32_t original, uint32_t first, size_t payloadOffset, std::string &error) {
     auto ctx = init_aarch64_asm();
     auto *a = ctx.assembler();
@@ -306,23 +306,29 @@ std::vector<uint8_t> Wrapper(uint64_t cave, uint64_t state, uint64_t resume, uin
     aarch64_asm_mov_x(a, x9, state);
     a->ldr(w10, ptr(x9, offsetof(State, control) + offsetof(Control, enabled)));
     a->cbz(w10, pass);
-    a->ldr(w10, ptr(x9, offsetof(State, control) + offsetof(Control, uid)));
-    a->ldr(w11, ptr(x0, uidOffset));
-    a->cmp(w10, w11);
+    a->cbz(x1, pass);
+    a->ldp(x10, x11, ptr(x1));
+    a->cmp(x11, x10);
+    a->b(CondCode::kLS, pass);
+    a->sub(x12, x11, x10);
+    a->mov(x13, sizeof(Event));
+    a->udiv(x14, x12, x13);
+    a->mul(x13, x14, x13);
+    a->cmp(x12, x13);
     a->b(CondCode::kNE, pass);
-    a->cbz(x2, pass);
-    a->cmp(x2, kMaxEvents);
+    a->cmp(x14, kMaxEvents);
     a->b(CondCode::kHI, pass);
-    constexpr uint64_t bytes = kMaxEvents * sizeof(Event) + 96;
+    constexpr uint64_t bytes = kMaxEvents * sizeof(Event) + 128;
     a->sub(sp, sp, bytes & ~4095ull);
     a->sub(sp, sp, bytes & 4095);
     a->stp(x0, x1, ptr(sp));
     a->stp(x2, x3, ptr(sp, 16));
     a->stp(x4, x30, ptr(sp, 32));
-    a->mov(x10, x1);
-    a->add(x11, sp, 96);
-    a->mov(x12, sizeof(Event));
-    a->mul(x12, x2, x12);
+    a->str(x14, ptr(sp, 48));
+    a->add(x11, sp, 128);
+    a->add(x13, x11, x12);
+    a->stp(x11, x13, ptr(sp, 96));
+    a->str(x13, ptr(sp, 112));
     a->bind(copy);
     a->ldr(x13, ptr(x10));
     a->str(x13, ptr(x11));
@@ -341,10 +347,9 @@ std::vector<uint8_t> Wrapper(uint64_t cave, uint64_t state, uint64_t resume, uin
     a->mul(x3, x3, x12);
     a->add(x4, x3, x4);
     aarch64_asm_mov_x(a, x0, state);
-    a->ldr(x9, ptr(sp));
-    a->ldr(w1, ptr(x9, uidOffset));
-    a->add(x2, sp, 96);
-    a->ldr(x3, ptr(sp, 16));
+    a->mov(w1, 0);
+    a->add(x2, sp, 128);
+    a->ldr(x3, ptr(sp, 48));
     // The helper is PIC and starts with a valid BTI landing instruction.
     aarch64_asm_mov_x(a, x16, cave + payloadOffset);
     a->blr(x16);
@@ -403,7 +408,7 @@ GyroStatus Status(std::string &error) {
         g_hook.stream = 0;
         s.installed = false;
         s.enabled = false;
-        error = "system_server identity changed; reinstall required";
+        error = "sensor HAL identity changed; reinstall required";
     }
     if (s.installed) {
         std::vector<uint8_t> b(sizeof(State));
@@ -489,8 +494,8 @@ uint32_t NewStream() {
 GyroStatus GyroInstall(std::string &error, uint32_t uid) {
     std::lock_guard<std::mutex> guard(g_mutex);
     error.clear();
-    if (uid < 1000) {
-        error = "an explicit target application UID is required";
+    if (uid != 0) {
+        error = "per-application gyro targeting was removed; request the device HAL with UID 0";
         return {};
     }
     if (g_hook.active && Identity(g_hook.pid) == g_hook.start) {
@@ -521,10 +526,10 @@ GyroStatus GyroInstall(std::string &error, uint32_t uid) {
     if (g_hook.mem >= 0)
         close(g_hook.mem);
     g_hook = Installed{};
-    uint32_t pid = FindProcess("system_server");
+    uint32_t pid = FindProcess("/vendor/bin/hw/android.hardware.sensors-service.multihal");
     uint64_t identity = Identity(pid);
     if (!pid || !identity) {
-        error = "system_server unavailable";
+        error = "the supported global sensors HAL process is unavailable";
         return {};
     }
     std::vector<MapLine> maps;
@@ -533,20 +538,20 @@ GyroStatus GyroInstall(std::string &error, uint32_t uid) {
     std::string path;
     uint64_t base = 0;
     for (const auto &m : maps)
-        if (m.path.size() >= 19 && m.path.substr(m.path.size() - 19) == "libsensorservice.so") {
+        if (m.path.size() >= 14 && m.path.substr(m.path.size() - 14) == "sensors.qsh.so") {
             path = m.path;
             base = m.start - m.offset;
             break;
         }
     if (path.empty()) {
-        error = "sensor library not mapped";
+        error = "the verified Qualcomm QSH global HAL backend is unavailable";
         return {};
     }
     std::vector<Elf64_Phdr> phdr;
     if (!Image(path, phdr, error))
         return {};
     uint64_t symbol = 0;
-    if (!ResolveSymbol(path, "_ZN7android13SensorService21SensorEventConnection10sendEventsE", symbol, error))
+    if (!ResolveSymbol(path, "_ZN7android8hardware7sensors4V2_16subhal14implementation17sensors_hw_module11post_eventsE", symbol, error))
         return {};
     uint64_t entry = base + symbol, patch = entry + 4;
     std::vector<uint8_t> head;
@@ -567,15 +572,14 @@ GyroStatus GyroInstall(std::string &error, uint32_t uid) {
         return {};
     Storage storage{};
     std::memcpy(&storage, raw.data(), sizeof(storage));
-    bool owned = storage.record.magic == kRecordMagic && storage.record.schema == 3 &&
+    bool owned = storage.record.magic == kRecordMagic && storage.record.schema == 4 &&
                  storage.record.process_start == identity && storage.record.entry == entry &&
                  storage.record.cave == cave;
     if (!owned && !std::all_of(raw.begin(), raw.end(), [](uint8_t x) { return x == 0; })) {
         error = "state padding belongs to another user; refusing overwrite";
         return {};
     }
-    uint32_t uidOffset = 0;
-    if (!UidMember(path, pid, base, uidOffset, error))
+    if (!HalLayout(path, pid, base, error))
         return {};
     uint32_t original = owned ? storage.record.original : displaced;
     if (!gyro_layout::Prologue(first, original)) {
@@ -591,8 +595,14 @@ GyroStatus GyroInstall(std::string &error, uint32_t uid) {
         error = "unowned entry patch detected; remove it using its original owner";
         return {};
     }
+    if (owned && displaced == patchWord && storage.state.control.enabled == 1 &&
+        Now() >= storage.state.control.updated &&
+        Now() - storage.state.control.updated <= kLeaseNs) {
+        error = "global HAL is owned by another live stream; stop it before attaching";
+        return {};
+    }
     constexpr size_t helperAt = 512;
-    auto code = Wrapper(cave, storageAt, entry + 8, uidOffset, original, first, helperAt, error);
+    auto code = Wrapper(cave, storageAt, entry + 8, original, first, helperAt, error);
     if (code.empty() || code.size() > helperAt) {
         if (error.empty())
             error = "wrapper exceeds reserved layout";
@@ -619,18 +629,28 @@ GyroStatus GyroInstall(std::string &error, uint32_t uid) {
         }
         storage.state.magic = kMagic;
         storage.state.version = kVersion;
-        storage.record = {kRecordMagic,          identity, entry, patch, cave, Hash(code), 3, uidOffset,
+        storage.record = {kRecordMagic,          identity, entry, patch, cave, Hash(code), 4, 0,
                           uint32_t(code.size()), original, first, 0};
         if (!Write(pid, cave, code.data(), code.size(), true, error) ||
             !Write(pid, storageAt, &storage, sizeof(storage), false, error))
             return {};
     }
+    // Retain recovery ownership before changing executable memory. If write or
+    // readback fails, Remove can still validate and restore this exact entry.
+    g_hook.active = true;
+    g_hook.pid = pid;
+    g_hook.start = identity;
+    g_hook.base = base;
+    g_hook.state = storageAt;
+    g_hook.record = storage.record;
+    g_hook.sequence = storage.state.control.sequence & ~1u;
+    g_hook.epoch = storage.state.control.epoch + 1;
     if (!Write(pid, patch, &patchWord, 4, true, error))
-        return {};
+        return Status(error);
     std::vector<uint8_t> verify;
     if (!Read(pid, patch, 4, verify, error) || std::memcmp(verify.data(), &patchWord, 4) != 0) {
         error = "entry patch confirmation failed; owned state retained for recovery";
-        return {};
+        return Status(error);
     }
     g_hook.active = true;
     g_hook.pid = pid;
@@ -820,6 +840,7 @@ uint64_t GyroGatewayHits() { return 0; }
 std::string GyroGatewayReport() {
     std::lock_guard<std::mutex> guard(g_mutex);
     return "gateway=disabled\nwriter=" + g_hook.writer +
-           "\nconfirmed_updates=" + std::to_string(g_hook.updates) + "\ndirect_channel=unsupported\n";
+           "\nconfirmed_updates=" + std::to_string(g_hook.updates) +
+           "\nscope=device-hal\nlayer=vendor-hal\ndirect_channel=unsupported\n";
 }
 } // namespace skpdb

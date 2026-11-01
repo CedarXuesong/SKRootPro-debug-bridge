@@ -16,12 +16,12 @@ internal static class GyroDeviceTests
             await engine.SetGyroModeAsync(true);engine.SetViewMode(true);
             for(int i=0;i<40;i++){engine.AddMouseDelta(1,2);await Task.Delay(20);}
             await Task.Delay(1200);
-            if(!engine.IsRunning||!engine.GyroMode)throw new InvalidOperationException("Real client gyro stream/health failed: "+engine.Metrics.LastError);
+            if(!engine.IsRunning||!engine.GyroMode||!engine.GyroEventsConfirmed)throw new InvalidOperationException("Real client gyro stream/health failed: "+engine.Metrics.LastError);
             await engine.SetGyroModeAsync(false);
             if(engine.GyroMode)throw new InvalidOperationException("Real client disable failed");
             await engine.StopAsync();
             if(await client.PingAsync()!="PONG")throw new InvalidOperationException("Parent connection lost");
-            Console.WriteLine("GYRO_DEVICE_PASS real install ACK, UID 2000, SKG2, two axes, health checks and reliable disarm; DFM was not launched");
+            Console.WriteLine("GYRO_DEVICE_PASS real global HAL install ACK, SKG2, two axes, confirmed sensor events and reliable disarm");
         }
         finally
         {

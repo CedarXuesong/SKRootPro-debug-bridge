@@ -635,19 +635,19 @@ public sealed class SkpdbClient : IDisposable
         return Encoding.UTF8.GetString(payload);
     }
 
-    public async Task<GyroSession> GyroInstallAsync(int targetUid, CancellationToken cancellationToken = default)
+    public async Task<GyroSession> GyroInstallAsync(CancellationToken cancellationToken = default)
     {
-        if(targetUid<1000)throw new ArgumentOutOfRangeException(nameof(targetUid));
-        var body=new byte[5];body[0]=1;BinaryPrimitives.WriteUInt32BigEndian(body.AsSpan(1),(uint)targetUid);
+        var body=new byte[]{1};
         var result=Encoding.UTF8.GetString(await RequestAsync((byte)'Z',body,cancellationToken).ConfigureAwait(false));
         var fields=result.Split('\n',StringSplitOptions.RemoveEmptyEntries).Select(row=>row.Split('=',2))
             .Where(pair=>pair.Length==2).ToDictionary(pair=>pair[0],pair=>pair[1]);
         if(fields.GetValueOrDefault("installed")!="1"||fields.GetValueOrDefault("protocol")!="2"||
             fields.GetValueOrDefault("enabled")!="1"||!uint.TryParse(fields.GetValueOrDefault("stream"),out var stream)||stream==0||
-            fields.GetValueOrDefault("target_uid")!=targetUid.ToString(System.Globalization.CultureInfo.InvariantCulture))
-            throw new InvalidOperationException("模块未确认陀螺仪目标和数据流，请更新配套模块");
-        return new(stream,targetUid,fields.GetValueOrDefault("writer", "unknown"),fields.GetValueOrDefault("sensor_types", ""),
-            fields.GetValueOrDefault("direct_channel")=="supported");
+            fields.GetValueOrDefault("scope")!="device-hal" || fields.GetValueOrDefault("layer")!="vendor-hal" ||
+            !uint.TryParse(fields.GetValueOrDefault("hits"), out var hits))
+            throw new InvalidOperationException("模块未确认整机 HAL 陀螺仪和数据流，请更新配套模块");
+        return new(stream,fields.GetValueOrDefault("writer", "unknown"),fields.GetValueOrDefault("sensor_types", ""),
+            fields.GetValueOrDefault("direct_channel")=="supported", hits);
     }
 
     public async Task GyroDisarmAsync(CancellationToken cancellationToken = default)
@@ -661,12 +661,17 @@ public sealed class SkpdbClient : IDisposable
         _=await RequestAsync((byte)'Z',body,cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task CheckGyroAsync(uint stream,CancellationToken cancellationToken=default)
+    public async Task<uint> CheckGyroAsync(uint stream,CancellationToken cancellationToken=default)
     {
         var text=Encoding.UTF8.GetString(await RequestAsync((byte)'Z',new byte[]{0},cancellationToken).ConfigureAwait(false));
         var fields=text.Split('\n',StringSplitOptions.RemoveEmptyEntries).Select(r=>r.Split('=',2)).Where(p=>p.Length==2).ToDictionary(p=>p[0],p=>p[1]);
-        if(fields.GetValueOrDefault("installed")!="1"||fields.GetValueOrDefault("enabled")!="1"||fields.GetValueOrDefault("stream")!=stream.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        if(fields.GetValueOrDefault("installed")!="1"||fields.GetValueOrDefault("enabled")!="1"||
+            fields.GetValueOrDefault("scope")!="device-hal"||fields.GetValueOrDefault("layer")!="vendor-hal"||
+            fields.GetValueOrDefault("stream")!=stream.ToString(System.Globalization.CultureInfo.InvariantCulture))
             throw new InvalidOperationException("陀螺仪写入未保持确认，或目标进程/数据流已改变");
+        if (!uint.TryParse(fields.GetValueOrDefault("hits"), out var hits))
+            throw new InvalidOperationException("模块缺少传感器事件计数，无法验证陀螺仪是否实际生效");
+        return hits;
     }
 
     public async Task<int> ResolvePackageUidAsync(string package, CancellationToken cancellationToken = default)

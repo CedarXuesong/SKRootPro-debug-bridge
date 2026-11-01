@@ -76,10 +76,11 @@ public sealed class GamepadEngine : IAsyncDisposable
     private bool _pendingLookRelease, _pendingPointerRelease;
     private double _lookAccumX;
     private double _lookAccumY;
-    // Framework gyro injection mode: mouse deltas become a yaw/pitch rate that
-    // is sent to the module's SKG1 fast path (~240 Hz), not a touch look.
+    // Global HAL gyro mode: mouse deltas become a yaw/pitch rate that
+    // is sent to the module's SKG2 fast path (~240 Hz), not a touch look.
     private bool _gyroMode;
-    private double _gyroSensitivity = 0.0015;  // rad/s per pixel, per 240 Hz tick
+    private bool _gyroEventsConfirmed;
+    private double _gyroSensitivity = 0.0015;  // radians per mouse pixel
     private uint _gyroSequence;
     private GyroSession? _gyroSession;
     private readonly GyroMotion _gyroMotion = new();
@@ -383,13 +384,6 @@ public sealed class GamepadEngine : IAsyncDisposable
             change = _pendingConfiguration;
         }
         if (change is null) return;
-        if(_gyroMode && !string.Equals(_profile?.Package,change.Profile.Package,StringComparison.Ordinal))
-        {
-            SkpdbClient? parent;uint owned;
-            lock(_gate){parent=_controlClient;owned=_gyroSession?.Stream??0;_gyroMode=false;_gyroSession=null;_gyroMotion.Reset();}
-            if(parent is not null&&owned!=0){using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(2));using var channel=await parent.OpenIndependentChannelAsync(timeout.Token).ConfigureAwait(false);await channel.GyroDisarmAsync(owned,timeout.Token).ConfigureAwait(false);}
-            Log?.Invoke(this,"应用已切换，陀螺仪已归零；新应用需重新确认启用");
-        }
         // The ACK advances the existing stream generation, fencing out UDP
         // moves that were in flight for the old app or screen orientation.
         await ReleaseAllAsync(force: true, throwOnError: true, preserveViewMode: true).ConfigureAwait(false);
@@ -494,6 +488,11 @@ public sealed class GamepadEngine : IAsyncDisposable
         get { lock (_gate) return _gyroMode; }
     }
 
+    public bool GyroEventsConfirmed
+    {
+        get { lock (_gate) return _gyroMode && _gyroEventsConfirmed; }
+    }
+
     public double GyroSensitivity
     {
         get { lock (_gate) return _gyroSensitivity; }
@@ -505,8 +504,8 @@ public sealed class GamepadEngine : IAsyncDisposable
     }
 
     /// <summary>
-    /// Enables the framework gyro path. While active, view-mode mouse deltas are
-    /// converted to a rate and sent over the SKG1 fast path; the touch look is
+    /// Enables the global HAL gyro path. While active, view-mode mouse deltas are
+    /// converted to a rate and sent over the SKG2 fast path; the touch look is
     /// released so the two input paths never fight.
     /// </summary>
     public async Task SetGyroModeAsync(bool enabled, CancellationToken cancellationToken = default)
@@ -514,16 +513,15 @@ public sealed class GamepadEngine : IAsyncDisposable
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            SkpdbClient parent;string package;
-            lock(_gate){if(_gyroMode==enabled)return;parent=_controlClient??throw new InvalidOperationException("请先开始操控");package=_profile?.Package??"";}
+            SkpdbClient parent;
+            lock(_gate){if(_gyroMode==enabled)return;parent=_controlClient??throw new InvalidOperationException("请先开始操控");}
             using var deadline=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);deadline.CancelAfter(TimeSpan.FromSeconds(12));
             using var channel=await parent.OpenIndependentChannelAsync(deadline.Token).ConfigureAwait(false);
             GyroSession? session=null;
             if(enabled)
             {
                 lock(_gate)if(_fastUdp is null||_fastEndpoint is null||_fastToken is null)throw new InvalidOperationException("陀螺仪需要 UDP 快速通道");
-                var uid=await channel.ResolvePackageUidAsync(package,deadline.Token).ConfigureAwait(false);
-                session=await channel.GyroInstallAsync(uid,deadline.Token).ConfigureAwait(false);
+                session=await channel.GyroInstallAsync(deadline.Token).ConfigureAwait(false);
             }
             else
             {
@@ -531,7 +529,7 @@ public sealed class GamepadEngine : IAsyncDisposable
                 try{if(owned!=0)await channel.GyroDisarmAsync(owned,deadline.Token).ConfigureAwait(false);}
                 catch{await Task.Delay(220).ConfigureAwait(false);lock(_gate)_gyroMode=false;throw;}
             }
-            lock(_gate){_gyroSession=session;_gyroMode=enabled;_gyroMotion.Reset();_gyroLastSample=0;_lookAccumX=_lookAccumY=0;if(enabled){_pendingLookRelease=true;_lastError=null;}}
+            lock(_gate){_gyroSession=session;_gyroMode=enabled;_gyroEventsConfirmed=false;_gyroMotion.Reset();_gyroLastSample=0;_lookAccumX=_lookAccumY=0;if(enabled){_pendingLookRelease=true;_lastError=null;}}
             if(session is not null)_=MonitorGyroAsync(parent,session,_cts?.Token??CancellationToken.None);
         }
         finally{_lifecycle.Release();}
@@ -541,13 +539,32 @@ public sealed class GamepadEngine : IAsyncDisposable
     {
         try
         {
+            var started = Stopwatch.GetTimestamp();
+            var health = new GyroEventHealth(session.InitialHits);
             using var channel=await parent.OpenIndependentChannelAsync(token).ConfigureAwait(false);
             while(true)
             {
                 await Task.Delay(500,token).ConfigureAwait(false);
                 lock(_gate)if(!ReferenceEquals(_gyroSession,session))return;
                 using var timeout=CancellationTokenSource.CreateLinkedTokenSource(token);timeout.CancelAfter(TimeSpan.FromSeconds(2));
-                await channel.CheckGyroAsync(session.Stream,timeout.Token).ConfigureAwait(false);
+                var hits = await channel.CheckGyroAsync(session.Stream,timeout.Token).ConfigureAwait(false);
+                if (!health.Observe(hits, Stopwatch.GetElapsedTime(started).TotalSeconds))
+                    throw new InvalidOperationException("整机 HAL 两秒内没有普通陀螺仪事件。请让手机前台应用开始读取传感器；DSP Direct Channel 暂不支持");
+                var confirmed = false;
+                lock (_gate)
+                {
+                    if (!ReferenceEquals(_gyroSession, session)) return;
+                    if (health.HasEvents && !_gyroEventsConfirmed)
+                    {
+                        _gyroEventsConfirmed = true;
+                        confirmed = true;
+                    }
+                }
+                if (confirmed)
+                {
+                    Log?.Invoke(this, "整机 HAL 已确认收到陀螺仪事件");
+                    Changed?.Invoke(this, EventArgs.Empty);
+                }
             }
         }
         catch(OperationCanceledException) when(token.IsCancellationRequested){}
@@ -556,9 +573,15 @@ public sealed class GamepadEngine : IAsyncDisposable
             lock(_gate)
             {
                 if(!ReferenceEquals(_gyroSession,session))return;
-                _gyroSession=null;_gyroMotion.Reset();_lookAccumX=_lookAccumY=0;
+                _gyroSession=null;_gyroEventsConfirmed=false;_gyroMotion.Reset();_lookAccumX=_lookAccumY=0;
             }
-            await Task.Delay(220).ConfigureAwait(false);
+            try
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                using var channel = await parent.OpenIndependentChannelAsync(timeout.Token).ConfigureAwait(false);
+                await channel.GyroDisarmAsync(session.Stream, timeout.Token).ConfigureAwait(false);
+            }
+            catch { await Task.Delay(220).ConfigureAwait(false); }
             lock(_gate){if(_gyroSession is not null)return;_gyroMode=false;_lastError="陀螺仪已停用并恢复触摸视角："+error.Message;}
             Log?.Invoke(this,_lastError!);Changed?.Invoke(this,EventArgs.Empty);
         }

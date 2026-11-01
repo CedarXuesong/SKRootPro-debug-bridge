@@ -45,6 +45,7 @@ string ReadKey()
     }
 }
 var key = ReadKey();
+if(args.Contains("--gyro-lab")){await GyroLabSession.RunAsync(host,key);return;}
 if(args.Contains("--gyro-device-test")){await GyroDeviceTests.RunAsync(host,key);return;}
 if (args.Contains("--soak")) { await SoakTests.RunAsync(host, key, args); return; }
 if (args.Contains("--dispatch-snapshot")) { await DispatchDiagnostics.SnapshotAsync(host, key); return; }

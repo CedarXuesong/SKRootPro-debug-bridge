@@ -1,6 +1,28 @@
 namespace SkpdbDesktop;
 
-public sealed record GyroSession(uint Stream, int TargetUid, string Writer, string SensorTypes, bool DirectChannel);
+public sealed record GyroSession(uint Stream, string Writer, string SensorTypes, bool DirectChannel,
+    uint InitialHits = 0);
+
+public sealed class GyroEventHealth(uint initialHits)
+{
+    public const double TimeoutSeconds = 2;
+    private uint _hits = initialHits;
+    private double _lastProgress;
+    public bool HasEvents { get; private set; }
+
+    public bool Observe(uint hits, double elapsedSeconds)
+    {
+        if (!double.IsFinite(elapsedSeconds) || elapsedSeconds < 0)
+            throw new ArgumentOutOfRangeException(nameof(elapsedSeconds));
+        if (hits != _hits)
+        {
+            _hits = hits;
+            _lastProgress = elapsedSeconds;
+            HasEvents = true;
+        }
+        return elapsedSeconds - _lastProgress < TimeoutSeconds;
+    }
+}
 
 /// <summary>Maps angular increments to device-space rates, preserving both axes and rotation.</summary>
 public sealed class GyroMotion

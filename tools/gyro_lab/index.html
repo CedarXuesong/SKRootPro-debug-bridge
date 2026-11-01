@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="lab-token" content="__TOKEN__">
+  <title>SKPDB 陀螺仪闭环测试</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header><div class="brand"><span class="mark">↻</span><div><h1>SKPDB 陀螺仪</h1><p id="device">连接设备中</p></div></div><div class="commands"><span id="connection" class="status">连接中</span><button id="shutdown" class="secondary" title="关闭本地服务" aria-label="关闭本地服务">⏻</button></div></header>
+  <main>
+    <section class="toolbar"><div><h2>整机 HAL 验证</h2><p id="phase">尚未测试</p></div><div class="commands"><label class="mode"><input type="radio" name="mode" value="browser" checked>手机网页闭环</label><label class="mode"><input type="radio" name="mode" value="native">原生全局预检</label><button id="run" disabled><span aria-hidden="true">▶</span> 开始测试</button><button id="stop" class="secondary" disabled><span aria-hidden="true">■</span> 停止并恢复</button></div></section>
+    <section class="metrics" aria-label="实时状态">
+      <article><span>处理范围</span><strong id="uid">整机 HAL</strong></article>
+      <article><span>本轮注入命中</span><strong id="hits">—</strong></article>
+      <article><span>本轮确认写入</span><strong id="updates">—</strong></article>
+      <article><span>网页曲线样本</span><strong id="count">0</strong></article>
+    </section>
+    <section class="plot-section"><div class="plot-heading"><div><h2>手机网页实际读数</h2><p id="phone-state">手机网页未连接</p></div><div class="legend"><span class="requested">指令</span><span class="target">浏览器</span><span>rad/s</span></div></div><canvas id="plot" height="320" aria-label="指令与手机浏览器角速度曲线"></canvas></section>
+    <section class="results"><h2>判定结果</h2><table><thead><tr><th>阶段</th><th>手机网页 rad/s</th><th>原生接收器 rad/s</th><th>结论</th></tr></thead><tbody id="checks"><tr><td colspan="4" class="empty">尚无测试结果</td></tr></tbody></table></section>
+    <section class="events"><h2>测试记录</h2><pre id="log" role="log">等待开始</pre></section>
+  </main>
+  <footer><span>全局 HAL 输出 · 无应用定向 · 非内核驱动 hook</span><span id="backend">DSP Direct Channel 尚未覆盖</span></footer>
+</body>
+</html>

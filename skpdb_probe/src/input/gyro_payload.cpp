@@ -18,6 +18,7 @@ static bool normalize(float *q) {
 }
 __attribute__((section(".text.entry"))) uint32_t Transform(State *s, uint32_t uid, Event *events,
                                                            size_t count, uint64_t now) {
+    (void)uid;
     if (!s || s->magic != kMagic || s->version != kVersion || count > kMaxEvents)
         return 0;
     Control c{};
@@ -40,7 +41,7 @@ __attribute__((section(".text.entry"))) uint32_t Transform(State *s, uint32_t ui
             break;
         }
     }
-    if (!stable || c.enabled != 1 || uid != c.uid || !c.uid || !c.stream)
+    if (!stable || c.enabled != 1 || c.uid != 0 || !c.stream)
         return 0;
     for (unsigned i = 0; i < 3; i++)
         if (!finite(c.rate[i]) || c.rate[i] < -15 || c.rate[i] > 15)
@@ -52,7 +53,7 @@ __attribute__((section(".text.entry"))) uint32_t Transform(State *s, uint32_t ui
     uint32_t changed = 0;
     for (size_t n = 0; n < count; n++) {
         Event &e = events[n];
-        if (e.version != 104 || e.timestamp <= 0)
+        if (e.timestamp <= 0)
             continue;
         const bool sampleLive = live && uint64_t(e.timestamp) >= c.valid_since &&
                                 uint64_t(e.timestamp) <= now && now - uint64_t(e.timestamp) <= 50000000;

@@ -6,6 +6,23 @@
 #include <limits>
 
 namespace skpdb::gyro_layout {
+// Verified QSH sensor::submit vector length calculation: (end-begin)/80.
+// A different vendor ABI must fail closed rather than reuse this event layout.
+inline bool HalEventStride80(const std::vector<uint8_t> &bytes) {
+    constexpr uint32_t words[] = {0xb202e7e9, 0x9344fd08, 0xf29999a9, 0x9b097d05};
+    for (size_t i = 0; i + sizeof(words) <= bytes.size(); i += 4) {
+        bool match = true;
+        for (size_t j = 0; j < 4; j++) {
+            uint32_t word = 0;
+            for (size_t k = 0; k < 4; k++)
+                word |= uint32_t(bytes[i + j * 4 + k]) << (k * 8);
+            match = match && word == words[j];
+        }
+        if (match)
+            return true;
+    }
+    return false;
+}
 // Small data-flow recognizer: only verified argument-to-member stores in the
 // constructor are accepted. Unknown instruction flow never supplies a guessed offset.
 inline bool UidOffset(const std::vector<uint8_t> &bytes, uint32_t &result) {

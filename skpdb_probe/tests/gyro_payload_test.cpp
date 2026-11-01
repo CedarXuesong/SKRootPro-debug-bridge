@@ -14,12 +14,12 @@ static void check(bool x, const char *text) {
         std::exit(1);
     }
 }
-int main(int argc, char **argv) {
+int main() {
     State s{};
     s.magic = kMagic;
     s.version = kVersion;
     s.control.sequence = 2;
-    s.control.uid = 10312;
+    s.control.uid = 0;
     s.control.enabled = 1;
     s.control.stream = 8;
     s.control.updated = 1000000000;
@@ -28,14 +28,14 @@ int main(int argc, char **argv) {
     s.control.epoch = 1;
     Event events[5]{};
     for (int i = 0; i < 5; i++) {
-        events[i].version = 104;
         events[i].timestamp = 1010000000;
         events[i].type = i == 0 ? 4 : i == 1 ? 16 : i == 2 ? 11 : i == 3 ? 15 : 1;
         events[i].data[3] = 1;
     }
     auto original = std::vector<uint8_t>((uint8_t *)events, (uint8_t *)events + sizeof(events));
-    check(Transform(&s, 10001, events, 5, 1010000000) == 0, "UID isolation");
-    check(std::memcmp(original.data(), events, sizeof(events)) == 0, "unrelated UID modified");
+    check(Transform(&s, 10001, events, 5, 1010000000) == 4, "global HAL must not filter a caller UID");
+    check(events[0].data[0] == 1 && events[1].data[1] == -.5f, "global rates");
+    std::memcpy(events, original.data(), sizeof(events));
     check(Transform(&s, 10312, events, 5, 1010000000) == 4, "all ordinary sensor types");
     check(events[0].data[0] == 1 && events[1].data[1] == -.5f && events[4].data[0] == 0,
           "rates and accelerometer isolation");
@@ -58,7 +58,6 @@ int main(int argc, char **argv) {
     }
     check(std::fabs(events[2].data[0]) > .4 && std::fabs(events[3].data[1]) > .2, "fusion integration");
     Event stale{};
-    stale.version = 104;
     stale.type = 4;
     stale.timestamp = s.control.updated + 1;
     check(Transform(&s, 10312, &stale, 1, s.control.updated + kLeaseNs + 1) == 0, "real wall-clock lease");
@@ -76,14 +75,11 @@ int main(int argc, char **argv) {
           "sequence wrap/reorder");
     check(!skpdb::gyro_protocol::Rates(__builtin_nanf(""), 0, 0) && !skpdb::gyro_protocol::Rates(16, 0, 0),
           "packet finite/bounds");
-    if (argc > 1) {
-        std::ifstream f(argv[1], std::ios::binary);
-        std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(f)), {});
-        std::vector<uint8_t> constructor(bytes.begin() + 0x44e7c, bytes.begin() + 0x44e7c + 1024);
-        uint32_t uid = 0;
-        check(skpdb::gyro_layout::UidOffset(constructor, uid) && uid == 0x38,
-              "actual sensor library UID member");
-    }
-    std::puts("PASS UID isolation, raw/uncalibrated rates, both fusion types, normalization, lease, seqlock "
+    uint32_t stride[] = {0xb202e7e9, 0x9344fd08, 0xf29999a9, 0x9b097d05};
+    std::vector<uint8_t> layout((uint8_t *)stride, (uint8_t *)stride + sizeof(stride));
+    check(skpdb::gyro_layout::HalEventStride80(layout), "verified HAL event layout");
+    layout[4] ^= 1;
+    check(!skpdb::gyro_layout::HalEventStride80(layout), "unknown HAL event ABI rejected");
+    std::puts("PASS global HAL, raw/uncalibrated rates, both fusion types, normalization, lease, seqlock "
               "and layout guards");
 }
