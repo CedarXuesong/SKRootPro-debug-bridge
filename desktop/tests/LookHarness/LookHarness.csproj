@@ -16,6 +16,7 @@
     <Compile Include="../../SkpdbDesktop/Gamepad/SampledInputState.cs" Link="SampledInputState.cs" />
     <Compile Include="../../SkpdbDesktop/SkpdbClient.cs" Link="SkpdbClient.cs" />
     <Compile Include="../../SkpdbDesktop/Gamepad/ControlOverlaySession.cs" Link="ControlOverlaySession.cs" />
+    <Compile Include="../../SkpdbDesktop/Gamepad/GestureLeaseSession.cs" Link="GestureLeaseSession.cs" />
     <Compile Include="../../SkpdbDesktop/Gamepad/GyroMotion.cs" Link="GyroMotion.cs" />
     <Compile Include="../../SkpdbDesktop/ScreenSnapshotCapture.cs" Link="ScreenSnapshotCapture.cs" />
     <Compile Include="../../SkpdbDesktop/Models.cs" Link="Models.cs" />

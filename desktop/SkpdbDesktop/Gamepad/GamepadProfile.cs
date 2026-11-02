@@ -41,6 +41,7 @@ public sealed class GamepadLookSettings
     public double MaxRadiusX { get; set; } = 0.16;
     public double MaxRadiusY { get; set; } = 0.22;
     public double Sensitivity { get; set; } = 1.6;
+    public bool InvertX { get; set; }
     public bool InvertY { get; set; }
     public double Smoothing { get; set; } = 0.25;
     public int Slot { get; set; } = 1;

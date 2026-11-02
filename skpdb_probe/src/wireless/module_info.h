@@ -25,7 +25,7 @@
 #define SKPDB_MODULE_NAME "SKPDB Network Bridge"
 #define SKPDB_MODULE_DESC "SKPDB 调试桥：root shell、文件传输、无痕内存读写扫描、真实触摸屏注入与截图不可见光标。不 ptrace、不建 uinput、不挂载；端口按签名 knock 开启，每连接 HMAC 验证。"
 #endif
-#define SKPDB_MODULE_BASE_VERSION "0.12.15"
+#define SKPDB_MODULE_BASE_VERSION "0.12.17"
 #define SKPDB_MODULE_VERSION SKPDB_MODULE_BASE_VERSION SKPDB_VERSION_SUFFIX "+" SKPDB_GIT_SHORT_COMMIT
 #define SKPDB_MODULE_AUTHOR "雪松/CedarXuesong"
 #define SKPDB_MODULE_ID32 "36c8b2dc7a8b4bb6a2b0e0ce54e05f31"

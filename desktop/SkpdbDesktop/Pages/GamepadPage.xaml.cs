@@ -88,6 +88,7 @@ public sealed partial class GamepadPage : Page
 
     private SkpdbClient? _cursorClient;
     private ControlOverlaySession? _controlOverlay;
+    private GestureLeaseSession? _gestureLease;
     private bool _startingControl, _controlActive, _controlCleanupQueued;
     private CancellationTokenSource? _cursorCts;
     private int _cursorEpoch;
@@ -854,6 +855,7 @@ public sealed partial class GamepadPage : Page
         if (_engine.IsRunning) return;
         _startingControl = true;
         ControlOverlaySession? pendingOverlay = null;
+        GestureLeaseSession? pendingGesture = null;
         try
         {
             LogPageEvent("start requested");
@@ -866,6 +868,8 @@ public sealed partial class GamepadPage : Page
             }
             var epoch = _pageEpoch;
             var generation = _session.Client.ConnectionGeneration;
+            if (info?.GestureLeaseSupported == true)
+                pendingGesture = await GestureLeaseSession.StartAsync(_session.Client);
             if (BuildInfo.UseDebugOverlay(info))
                 pendingOverlay = await ControlOverlaySession.StartAsync(_session.Client, BuildOverlayState());
             await _engine.StartAsync(_session.Client, _device, _profile);
@@ -882,6 +886,22 @@ public sealed partial class GamepadPage : Page
                 _controlOverlay = activeOverlay; pendingOverlay = null;
                 if (activeOverlay.Failure is { } overlayFailure) throw overlayFailure;
             }
+            if (pendingGesture is { } activeGesture)
+            {
+                activeGesture.Failed += error => DispatcherQueue.TryEnqueue(async () =>
+                {
+                    await _engineTransitions.WaitAsync();
+                    try
+                    {
+                        if (!ReferenceEquals(_gestureLease, activeGesture)) return;
+                        await StopEngineCoreAsync();
+                        SetStatus("系统手势协调中断，已停止操控：" + error.Message, true);
+                    }
+                    finally { _engineTransitions.Release(); }
+                });
+                _gestureLease = activeGesture; pendingGesture = null;
+                if (activeGesture.Failure is { } gestureFailure) throw gestureFailure;
+            }
             _engine.SetInputEnabled(IsAppActive());
             _engine.ClearInput();
             _hasPointer = false;
@@ -892,7 +912,7 @@ public sealed partial class GamepadPage : Page
             await EnableCursorAsync();
             UpdateMetrics();
             SyncPlayModeUi(force: true);
-            SetStatus("操控已开始");
+            SetStatus(info?.GestureLeaseSupported == true ? "操控已开始" : "操控已开始；旧模块需手动关闭三指截图等冲突手势");
         }
         catch (Exception error)
         {
@@ -904,6 +924,7 @@ public sealed partial class GamepadPage : Page
         finally
         {
             if (pendingOverlay is not null) await pendingOverlay.DisposeAsync();
+            if (pendingGesture is not null) await pendingGesture.DisposeAsync();
             _startingControl = false;
         }
     }
@@ -985,6 +1006,7 @@ public sealed partial class GamepadPage : Page
         _controlActive = false;
         ReleaseNativeMouseInput();
         await _engine.StopAsync();
+        if (_gestureLease is { } gesture) { _gestureLease = null; await gesture.DisposeAsync(); }
         if (_controlOverlay is { } overlay) { _controlOverlay = null; await overlay.DisposeAsync(); }
         if (!_developerPreviewAccess) await DisableCursorAsync();
         _engine.ClearInput();
@@ -1282,6 +1304,7 @@ public sealed partial class GamepadPage : Page
                 SelectedLook.MaxRadiusY = ValueOr(LookRadiusYBox.Value, SelectedLook.MaxRadiusY * LogicalHeight * 2) / (LogicalHeight * 2);
                 SelectedLook.Sensitivity = ValueOr(SensitivityBox.Value, SelectedLook.Sensitivity);
                 SelectedLook.Smoothing = ValueOr(SmoothingBox.Value, SelectedLook.Smoothing);
+                SelectedLook.InvertX = InvertXToggle.IsOn;
                 SelectedLook.InvertY = InvertYToggle.IsOn;
                 _profile.Look.Slot = (int)ValueOr(SlotBox.Value, _profile.Look.Slot);
                 SelectedLook.RecenterMode = SelectedRecenterMode();
@@ -2019,6 +2042,7 @@ public sealed partial class GamepadPage : Page
         SlotBox.Value = SelectedLook.Slot;
         SensitivityBox.Value = SelectedLook.Sensitivity;
         SmoothingBox.Value = SelectedLook.Smoothing;
+        InvertXToggle.IsOn = SelectedLook.InvertX;
         InvertYToggle.IsOn = SelectedLook.InvertY;
         RecenterDelayBox.Value = SelectedLook.RecenterDelayMs;
         RelayOverlapBox.Value = SelectedLook.RelayOverlapMs;

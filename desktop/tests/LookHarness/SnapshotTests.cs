@@ -241,7 +241,7 @@ internal static class SnapshotTests
         Console.WriteLine("PASS one-shot socket failure recovery and stale primary-generation isolation");
     }
 
-    private sealed class Peer : IAsyncDisposable
+    internal sealed class Peer : IAsyncDisposable
     {
         private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
         private readonly CancellationTokenSource _stop = new();
@@ -260,6 +260,12 @@ internal static class SnapshotTests
         private int _slowNextInfo;
         private readonly ConcurrentDictionary<int, bool> _active = new();
         private readonly ConcurrentDictionary<int, int> _downs = new();
+        private readonly object _gestureGate = new();
+        private TcpClient? _gestureOwner;
+        private int _gestureEnabled;
+        public bool GestureSupported = true;
+        public int GestureEnabled => Volatile.Read(ref _gestureEnabled);
+        public ConcurrentQueue<byte> GestureRequests { get; } = new();
         public ConcurrentBag<string> Paths { get; } = new();
         public TaskCompletionSource ReadGated = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReadRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -328,7 +334,8 @@ internal static class SnapshotTests
                         else if (command == "fixture hud-ok") HudSupported = true;
                         else if (command == "fixture state") text = System.Text.Json.JsonSerializer.Serialize(new
                         { touchInfoReads = _touchInfoReads, slowCommands = _slowCommands, active = _active.Keys.Order().ToArray(), downs = _downs,
-                            hudEnabled = HudEnabled, hudUpdates = HudUpdates, hudPacket = HudPackets.LastOrDefault() });
+                            hudEnabled = HudEnabled, hudUpdates = HudUpdates, hudPacket = HudPackets.LastOrDefault(),
+                            gestureEnabled = GestureEnabled });
                         else if (command.Contains("dumpsys", StringComparison.Ordinal)) text = "mCurrentFocus=Window{123 u0 com.snapshot.test/.MainActivity}";
                         var encoded = Encoding.UTF8.GetBytes(text);
                         body = new byte[8 + encoded.Length];
@@ -381,12 +388,34 @@ internal static class SnapshotTests
                         BinaryPrimitives.WriteInt32BigEndian(body, listing.Length);
                         listing.CopyTo(body, 4);
                     }
+                    else if (op == (byte)'B' && request.Length == 3 && request[1] == 7)
+                    {
+                        body = Array.Empty<byte>();
+                        lock (_gestureGate)
+                        {
+                            GestureRequests.Enqueue(request[2]);
+                            if (GestureSupported && (_gestureOwner is null || ReferenceEquals(_gestureOwner, client)))
+                            {
+                                if (request[2] == 1 || request[2] == 2 && ReferenceEquals(_gestureOwner, client))
+                                {
+                                    _gestureOwner = client; Volatile.Write(ref _gestureEnabled, 1);
+                                    body = Encoding.ASCII.GetBytes("gesture_lease=1\ngesture_changed=1\n");
+                                }
+                                else if (request[2] == 0)
+                                {
+                                    _gestureOwner = null; Volatile.Write(ref _gestureEnabled, 0);
+                                    body = Encoding.ASCII.GetBytes("gesture_lease=0\ngesture_changed=0\n");
+                                }
+                            }
+                        }
+                    }
                     else if (op == (byte)'B')
                     {
                         if (Interlocked.Exchange(ref _slowNextInfo, 0) == 1) await Task.Delay(350, _stop.Token);
                         var channelInfo = InfoBuildChannel.Length == 0 ? "" :
                             "\nbuild_channel=" + InfoBuildChannel + "\ndebug_overlay=" + (InfoBuildChannel == "Canary" ? "1" : "0");
-                        body = Encoding.UTF8.GetBytes("name=snapshot-test\nversion=0.0.0\nservice_port=" + Options.Port + channelInfo);
+                        body = Encoding.UTF8.GetBytes("name=snapshot-test\nversion=0.0.0\nservice_port=" + Options.Port + channelInfo +
+                            "\ngesture_lease=" + (GestureSupported ? "1" : "0"));
                     }
                     else if (op == (byte)'A')
                     {
@@ -410,6 +439,12 @@ internal static class SnapshotTests
                 }
             }
             catch (Exception error) when (error is OperationCanceledException or IOException or SocketException) { }
+            finally
+            {
+                lock (_gestureGate)
+                    if (ReferenceEquals(_gestureOwner, client))
+                    { _gestureOwner = null; Volatile.Write(ref _gestureEnabled, 0); }
+            }
         }
 
         public async ValueTask DisposeAsync()

@@ -18,6 +18,7 @@ constexpr uint8_t kAdminWebUiStart = 3;   // no arguments  -> webui_port=<port>
 constexpr uint8_t kAdminWebUiStop = 4;    // no arguments  -> stopped
 constexpr uint8_t kAdminTouchStream = 5;  // stream/generation + reliable touch batch
 constexpr uint8_t kAdminDiagnostics = 6; // read-only system/touch/memory capability checks
+constexpr uint8_t kAdminGestureLease = 7; // [mode u8] 0 release, 1 acquire, 2 renew; socket-owned eight-second lease
 
 // Administration runs over a filesystem socket in the module private
 // directory. It is reachable by root only, is invisible to network scans, and

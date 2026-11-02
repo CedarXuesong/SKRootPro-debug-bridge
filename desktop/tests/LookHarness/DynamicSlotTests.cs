@@ -36,6 +36,55 @@ internal static class DynamicSlotTests
         TestProfilesAndPreview();
         TestLookDisplacement();
         await TestEngine();
+        await TestKeyboardChord();
+    }
+
+    private static async Task TestKeyboardChord()
+    {
+        await using var peer = new ReconfigurationTests.Peer();
+        using var client = new SkpdbClient(); await client.ConnectAsync(peer.Options);
+        await using var engine = new GamepadEngine();
+        var profile = LargeProfile(12); profile.Move.Enabled = profile.Look.Enabled = false;
+        engine.ConfigureFastPath("127.0.0.1", 0, "", 2, 16);
+        for (var i = 0; i < profile.Buttons.Count; i++)
+        {
+            profile.Buttons[i].Binding = "F" + (i + 1);
+            profile.Buttons[i].Kind = i % 2 == 0 ? GamepadControlKind.Tap : GamepadControlKind.Skill;
+        }
+        foreach (var rotation in Enumerable.Range(0, 4))
+        {
+            var device = new TouchDeviceInfo("key-chord", "", "", 1280, 2772, 9, true, true)
+                .WithDisplay(rotation, rotation % 2 == 0 ? 1280 : 2772, rotation % 2 == 0 ? 2772 : 1280);
+            await engine.StartAsync(client, device, profile);
+            var downCount = peer.Events.Count(e => e.Action == 1);
+            foreach (var i in Enumerable.Range(0, 12))
+            {
+                engine.SetKey("F" + (i + 1), true);
+                await Task.Delay(80); // Longer than the old automatic 40ms lift.
+                Check(peer.ActiveCount == Math.Min(i + 1, 10) && engine.Metrics.PendingSlots == Math.Max(i - 9, 0),
+                    $"Keyboard chord lost a held key: rotation={rotation}, key={i + 1}, active={peer.ActiveCount}");
+            }
+            await Task.Delay(180);
+            Check(peer.ActiveCount == 10 && peer.Events.Count(e => e.Action == 1) == downCount + 10,
+                "Held ordinary keys re-tapped or lifted before release");
+            engine.SetKey("F11", false);
+            await Until(() => engine.Metrics.PendingSlots == 1);
+            engine.SetKey("F1", false);
+            await Until(() => engine.Metrics.PendingSlots == 0 && peer.Events.Count(e => e.Action == 1) == downCount + 11);
+            Check(peer.ActiveCount == 10, "Releasing one key lost another held key or failed FIFO promotion");
+            foreach (var i in Enumerable.Range(0, 12)) engine.SetKey("F" + (i + 1), false);
+            await Until(() => peer.ActiveCount == 0);
+            foreach (var i in Enumerable.Range(0, 10)) engine.SetKey("F" + (i + 1), true);
+            await Until(() => peer.ActiveCount == 10);
+            engine.SetInputEnabled(false);
+            await Until(() => peer.ActiveCount == 0 && engine.Metrics.PendingSlots == 0);
+            engine.SetInputEnabled(true);
+            await Task.Delay(80);
+            Check(peer.ActiveCount == 0, "Focus recovery revived held keys without a fresh press");
+            await engine.StopAsync();
+        }
+        Check(await client.PingAsync() == "PONG", "Multi-key cleanup lost the main connection");
+        Console.WriteLine("PASS real keyboard state: 12 sequential Tap/Skill keys, 10 held contacts, cancelled wait, FIFO refill, release and focus cleanup in four rotations");
     }
 
     private static void TestLeases()

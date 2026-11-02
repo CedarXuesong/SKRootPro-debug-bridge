@@ -13,6 +13,7 @@
 #include <cerrno>
 #include <cstring>
 #include <ctime>
+#include <system_error>
 
 #include "common/bytes.h"
 #include "common/crypto.h"
@@ -116,7 +117,12 @@ bool KnockReceiver::Start(uint16_t port, const std::string& key, uint32_t window
     callback_ = std::move(callback);
     seen_.clear();
     stopping_ = false;
-    thread_ = std::thread(&KnockReceiver::Run, this);
+    try { thread_ = std::thread(&KnockReceiver::Run, this); }
+    catch (const std::system_error& failure) {
+        error = std::string("knock thread: ") + failure.what();
+        Stop();
+        return false;
+    }
     return true;
 }
 

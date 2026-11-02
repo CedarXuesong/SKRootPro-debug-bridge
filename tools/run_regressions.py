@@ -20,7 +20,7 @@ for name, folder in {"TMP": "tmp", "TEMP": "tmp", "DOTNET_CLI_HOME": "dotnet_hom
 build = subprocess.run([args.dotnet, "build", str(root / "desktop/tests/LookHarness"), "-v:q"], cwd=root, env=env)
 if build.returncode:
     raise SystemExit(build.returncode)
-suites = ["slots", "input", "profile", "transport", "client", "knock", "reconfigure", "joystick", "preview", "self", "control", "snapshot", "overlay", "micro", "gyro", "update"]
+suites = ["slots", "input", "profile", "transport", "client", "knock", "reconfigure", "joystick", "preview", "self", "control", "snapshot", "overlay", "micro", "gyro", "update", "gesture-lease"]
 report = {"passed": False, "suites": []}
 for suite in suites:
     result = subprocess.run([args.dotnet, str(root / "desktop/tests/LookHarness/bin/Debug/net8.0/LookHarness.dll"), f"--{suite}-test"], cwd=root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)

@@ -30,12 +30,18 @@ foreach ($suite in @('--slots-test','--control-test','--input-test','--profile-t
 10 个按住加 2 个等待、取消与补位、失焦、双指视角切鼠标、缩小设备容量和停止清理。
 `--profile-test` 覆盖非法配置、模式绑定冲突、保存失败保留原文件、迁移与部分损坏恢复。
 也检查设置文件被锁定时明确返回失败、保留原内容、无临时文件残留，以及非法字段恢复。
-`--control-test` 覆盖四种旋转的 40,016 次坐标往返、逻辑分辨率缩放、Tap/Skill 的 40 ms 保持、
+`--control-test` 覆盖四种旋转的 40,016 次坐标往返、逻辑分辨率缩放、Tap/Skill 按住保持与短按最少 40 ms、
 短按排队、Swipe/Scroll/Zoom 的时长/终点/方向、Hold/Toggle、不同间隔 Rapid、
 全部非模式控件与画布事件一致、释放/重置和有界队列。
 `--client-test` 使用真实随机 nonce/HMAC 的本地协议端点，覆盖认证停滞、重连竞争、
 独立通道/排队请求的会话绑定、默认请求超时、进行中及重复 Dispose、畸形文件块、
 失败下载保留原文件和成功替换。
+`--gesture-lease-test` 检查能力声明、严格 ACK、独立心跳、停止与重复释放、主连接替换和旧模块兼容。
+`--slots-test` 另以 12 个真实引擎键状态检查 10 个同时按住触点、等待取消、FIFO 补位和四方向旋转。
+真机 `HOST --multitouch-device-test` 使用惰性触摸接收器与物理 evdev 状态，核对 Android 实际收到十指、
+跟踪 ID 稳定、满槽补位、停止清理、无新增 InputDevice、系统手势恢复；需要预装测试接收器与状态探针。
+`skpdb_probe/tests/gesture_lease_test.cpp` 在 Android 上用可控时钟/命令检查原生租约所有权、超时、恢复失败重试、
+重启日志恢复和用户主动更改，不修改实际系统手势。
 同一套件还做 1.4 MB 二进制上传/下载比对、Unicode 路径、空文件覆盖和不完整写入拒绝。
 其它套件覆盖原有轮盘随机轨迹、视角接力、前台/旋转切换、连接中断与内存快照。
 `--update-test` 用离线 HTTP 端点检查 Canary/Release 更新源隔离、相同提交、
@@ -129,8 +135,14 @@ python desktop/tests/check-startup.py --client dist/SKPDB/SKPDB.exe --settle-sec
 端点或宿主运行时不要重建其正在使用的输出目录；先停止测试进程，或使用另一配置/输出目录。
 
 0.12.41 新增 `LookHarness --gyro-test`，检查双轴/四旋转/反转、采样时间增益、配置克隆及安装失败时保留触摸。
+0.12.44 补充默认双轴符号与独立 X/Y 反转的四旋转组合、旧配置缺省 X/保留 Y、多视角组件的克隆与保存测试。
+视角接力另检查四旋转下 X/双轴反转的累计位移，WinUI 编辑器检查反转开关的实时保存、撤销重做与组件切换。
 真实设备入口 `LookHarness HOST --gyro-device-test` 从 stdin 读取密钥，目标使用 com.android.shell / UID 2000，
 验证安装 ACK、SKG2、健康检查、关闭和停止；不启动 DFM。它会安装并在 finally 中移除自己拥有的传感器 hook。
+0.12.45 补充 40 次引擎/陀螺仪连续启停与旧健康检查迟到的离线回归；真机入口另循环 40 次启停，
+覆盖显式停用和引擎停止归零，最后确认传感器事件恢复和主连接仍可 PING。
+模块的 `connection_workers_test.cpp` 可使用 Android NDK 编译后通过 ADB 在独立进程运行，
+检查 1,200 次重连复用单个线程、线程创建失败回滚、容量拒绝、处理异常恢复与末会话清理期间的接入互斥。
 模块侧 `gyro_payload_test.cpp` 检查类型转换、四元数、租期、seqlock、UID 布局和序号范围；
 `gyro_wrapper_test.cpp` 在独立进程中测试真实 AArch64 跳板与 PAC，不修改 system_server。
 完整记录和 Direct Channel 未完成范围见 `skpdb_probe/REVIEW-0.12.13.md`。

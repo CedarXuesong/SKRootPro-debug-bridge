@@ -9,10 +9,10 @@
     <Platforms>x64</Platforms>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <BuildChannel Condition="'$(BuildChannel)' == ''">Release</BuildChannel>
-    <Version>0.12.43</Version>
-    <Version Condition="'$(BuildChannel)' == 'Canary'">0.12.43-canary</Version>
-    <AssemblyVersion>0.12.43.0</AssemblyVersion>
-    <FileVersion>0.12.43.0</FileVersion>
+    <Version>0.12.46</Version>
+    <Version Condition="'$(BuildChannel)' == 'Canary'">0.12.46-canary</Version>
+    <AssemblyVersion>0.12.46.0</AssemblyVersion>
+    <FileVersion>0.12.46.0</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <UseWinUI>true</UseWinUI>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>

@@ -27,7 +27,9 @@ public sealed record GamepadControlKindInfo(
 {
     /// <summary>按住 / 切换 / 连发 对这类按键是否有意义。</summary>
     public bool UsesButtonMode => Kind
-        is GamepadControlKind.Fire
+        is GamepadControlKind.Tap
+        or GamepadControlKind.Skill
+        or GamepadControlKind.Fire
         or GamepadControlKind.RightWalk
         or GamepadControlKind.Crosshair;
 
@@ -56,7 +58,7 @@ public static class GamepadControlCatalog
     public static IReadOnlyList<GamepadControlKindInfo> All { get; } = new[]
     {
         new GamepadControlKindInfo(GamepadControlKind.Tap, "点击按键", "\uE8B0", "F",
-            GamepadButtonMode.Hold, 0.055, "按下立即点一次屏幕"),
+            GamepadButtonMode.Hold, 0.055, "按下落指，松开抬指；可与其它按键同时按住"),
         new GamepadControlKindInfo(GamepadControlKind.Rapid, "连击按键", "\uE8EE", "R",
             GamepadButtonMode.Rapid, 0.055, "按住后按连发间隔连续点击"),
         new GamepadControlKindInfo(GamepadControlKind.Swipe, "滑动键位", "\uE8AB", "G",
@@ -72,7 +74,7 @@ public static class GamepadControlCatalog
         new GamepadControlKindInfo(GamepadControlKind.RightWalk, "右键行走", "\uE962", "MouseRight",
             GamepadButtonMode.Hold, 0.055, "按住鼠标右键对应的行走 / 瞄准"),
         new GamepadControlKindInfo(GamepadControlKind.Skill, "技能施法", "\uE945", "Q",
-            GamepadButtonMode.Hold, 0.055, "按下施放一次技能"),
+            GamepadButtonMode.Hold, 0.055, "按住蓄力或施法，松开抬指；支持切换和连发模式"),
         new GamepadControlKindInfo(GamepadControlKind.Scroll, "滚动键", "\uE70E", "Z",
             GamepadButtonMode.Hold, 0.05, "滚轮或点击上下滚动列表"),
         new GamepadControlKindInfo(GamepadControlKind.Zoom, "缩放键", "\uE8A3", "C",

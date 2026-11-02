@@ -114,6 +114,7 @@ internal static class ReconfigurationTests
         private readonly ConcurrentDictionary<int, bool> _slots = new();
         private readonly Task _accept;
         public int Connections;
+        public int CurrentConnections, PeakConnections;
         public int ActiveCount => _slots.Count;
         public readonly ConcurrentQueue<uint> Streams = new();
         public readonly ConcurrentQueue<uint> Generations = new();
@@ -121,6 +122,7 @@ internal static class ReconfigurationTests
         public TaskCompletionSource? BatchEntered, BatchProceed;
         public bool RejectNextRelease, GateNextRelease, StallQuery;
         public Func<byte[], string>? GyroResponse;
+        public Func<byte[], Task<string>>? GyroResponseAsync;
         public string Package = "test.start";
         public TaskCompletionSource ReleaseGated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseProceed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -143,6 +145,10 @@ internal static class ReconfigurationTests
                 {
                     var client = await _listener.AcceptTcpClientAsync(_stop.Token);
                     Interlocked.Increment(ref Connections);
+                    var current = Interlocked.Increment(ref CurrentConnections);
+                    int peak;
+                    do { peak = PeakConnections; }
+                    while (current > peak && Interlocked.CompareExchange(ref PeakConnections, current, peak) != peak);
                     _clients.Add(ServeAsync(client));
                 }
             }
@@ -169,6 +175,8 @@ internal static class ReconfigurationTests
                     if (op == (byte)'K') body = Encoding.ASCII.GetBytes("PONG");
                     if (op == (byte)'Z' && GyroResponse is { } gyro)
                         body = Encoding.UTF8.GetBytes(gyro(frame));
+                    if (op == (byte)'Z' && GyroResponseAsync is { } gyroAsync)
+                        body = Encoding.UTF8.GetBytes(await gyroAsync(frame));
                     if (op == (byte)'E')
                     {
                         if (StallQuery)
@@ -230,6 +238,7 @@ internal static class ReconfigurationTests
                 }
             }
             catch (Exception e) when (e is OperationCanceledException or IOException or SocketException) { }
+            finally { Interlocked.Decrement(ref CurrentConnections); }
         }
 
         public async ValueTask DisposeAsync()

@@ -9,7 +9,8 @@ public sealed class SampledButtonAction
     private readonly SampledButtonContact _contact;
     private readonly SampledJoystick? _stick;
     private readonly Queue<(Gesture Kind, int Direction)> _pending = new();
-    private bool _wasPressed, _toggle, _active;
+    private bool _wasPressed, _toggle, _active, _tapReleased;
+    private Gesture _gesture;
     private double _lastTime, _startedAt, _duration, _rapidAt;
     private int _startX, _startY, _endX, _endY;
 
@@ -58,8 +59,12 @@ public sealed class SampledButtonAction
             _stick.Update(pressed ? direction.X : 0, pressed ? direction.Y : 0, false, nowMs, batch);
             return;
         }
-        var hold = _button.Kind is GamepadControlKind.Fire or GamepadControlKind.RightWalk or GamepadControlKind.Crosshair;
-        var rapid = _button.Kind == GamepadControlKind.Rapid || hold && _button.Mode == GamepadButtonMode.Rapid;
+        var point = _button.Kind is GamepadControlKind.Tap or GamepadControlKind.Skill or
+            GamepadControlKind.Fire or GamepadControlKind.RightWalk or GamepadControlKind.Crosshair;
+        var sustainedTap = _button.Kind is GamepadControlKind.Tap or GamepadControlKind.Skill &&
+            _button.Mode == GamepadButtonMode.Hold;
+        var rapid = _button.Kind == GamepadControlKind.Rapid || point && _button.Mode == GamepadButtonMode.Rapid;
+        var hold = point && !sustainedTap;
         if (hold && !rapid)
         {
             if (_button.Mode == GamepadButtonMode.Toggle && rising) _toggle = !_toggle;
@@ -83,12 +88,17 @@ public sealed class SampledButtonAction
 
         if (_active)
         {
+            // A normal key mirrors its physical press, with a minimum tap duration.
+            // Once released, a later press is a separate queued gesture and must
+            // never revive the old contact or change its randomized landing.
+            if (!pressed) _tapReleased = true;
             var progress = Math.Clamp((nowMs - _startedAt) / _duration, 0, 1);
             var eased = progress * progress * (3 - 2 * progress);
             if (_endX != _startX || _endY != _startY)
                 _contact.MoveTo(_device, (int)Math.Round(_startX + (_endX - _startX) * eased),
                     (int)Math.Round(_startY + (_endY - _startY) * eased), batch);
-            if (progress >= 1) { _contact.Release(batch); _active = false; }
+            if (progress >= 1 && !(_gesture == Gesture.Tap && sustainedTap && !_tapReleased))
+            { _contact.Release(batch); _active = false; }
             return; // A queued gesture starts on a later sample, never in this UP's batch.
         }
         if (!_pending.TryDequeue(out var next)) return;
@@ -109,13 +119,15 @@ public sealed class SampledButtonAction
             Gesture.Rapid => Math.Clamp(_button.TapIntervalMs / 2.0, 8, 40),
             _ => _button.DurationMs
         };
+        _gesture = next.Kind;
+        _tapReleased = !pressed || _pending.Count != 0;
         _startedAt = nowMs; _active = true;
     }
 
     public void Release(List<TouchBatchEvent> batch)
     {
         _stick?.Release(batch); _contact.Release(batch);
-        _pending.Clear(); _active = _toggle = _wasPressed = false;
+        _pending.Clear(); _active = _toggle = _wasPressed = _tapReleased = false;
         _lastTime = _rapidAt = 0;
     }
 }

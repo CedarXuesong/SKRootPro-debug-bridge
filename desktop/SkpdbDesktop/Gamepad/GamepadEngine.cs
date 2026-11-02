@@ -83,6 +83,8 @@ public sealed class GamepadEngine : IAsyncDisposable
     private double _gyroSensitivity = 0.0015;  // radians per mouse pixel
     private uint _gyroSequence;
     private GyroSession? _gyroSession;
+    private CancellationTokenSource? _gyroMonitorCancellation;
+    private Task? _gyroMonitorTask;
     private readonly GyroMotion _gyroMotion = new();
     private double _gyroLastSample;
     private double _lastTcpMove = double.NegativeInfinity;
@@ -431,6 +433,7 @@ public sealed class GamepadEngine : IAsyncDisposable
         {
             try { await loop.ConfigureAwait(false); } catch (OperationCanceledException) { }
         }
+        await StopGyroMonitorAsync().ConfigureAwait(false);
         cts?.Dispose();
         SkpdbClient? gyroParent;
         uint ownedGyro;
@@ -514,34 +517,70 @@ public sealed class GamepadEngine : IAsyncDisposable
         try
         {
             SkpdbClient parent;
-            lock(_gate){if(_gyroMode==enabled)return;parent=_controlClient??throw new InvalidOperationException("请先开始操控");}
-            using var deadline=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);deadline.CancelAfter(TimeSpan.FromSeconds(12));
-            using var channel=await parent.OpenIndependentChannelAsync(deadline.Token).ConfigureAwait(false);
-            GyroSession? session=null;
-            if(enabled)
+            uint owned;
+            lock (_gate)
             {
-                lock(_gate)if(_fastUdp is null||_fastEndpoint is null||_fastToken is null)throw new InvalidOperationException("陀螺仪需要 UDP 快速通道");
-                session=await channel.GyroInstallAsync(deadline.Token).ConfigureAwait(false);
+                if (_gyroMode == enabled && (enabled ? _gyroSession is not null : _gyroMonitorTask is null)) return;
+                parent = _controlClient ?? throw new InvalidOperationException("请先开始操控");
+                if (enabled && (_fastUdp is null || _fastEndpoint is null || _fastToken is null))
+                    throw new InvalidOperationException("陀螺仪需要 UDP 快速通道");
+                owned = _gyroSession?.Stream ?? 0;
+                _gyroMode = false; _gyroSession = null; _gyroEventsConfirmed = false;
+                _gyroMotion.Reset(); _gyroLastSample = 0; _lookAccumX = _lookAccumY = 0;
             }
-            else
+            // Retire and close the old health socket before opening another one.
+            // A late response/cleanup must never escape into the next start.
+            await StopGyroMonitorAsync().ConfigureAwait(false);
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(12));
+            SkpdbClient? channel = null;
+            try
             {
-                uint owned;lock(_gate){owned=_gyroSession?.Stream??0;_gyroSession=null;_gyroMotion.Reset();}
-                try{if(owned!=0)await channel.GyroDisarmAsync(owned,deadline.Token).ConfigureAwait(false);}
-                catch{await Task.Delay(220).ConfigureAwait(false);lock(_gate)_gyroMode=false;throw;}
+                if (!enabled && owned == 0) return;
+                channel = await parent.OpenIndependentChannelAsync(deadline.Token).ConfigureAwait(false);
+                if (!enabled)
+                {
+                    await channel.GyroDisarmAsync(owned, deadline.Token).ConfigureAwait(false);
+                    return;
+                }
+                var session = await channel.GyroInstallAsync(deadline.Token).ConfigureAwait(false);
+                lock (_gate)
+                {
+                    _gyroSession = session; _gyroMode = true; _pendingLookRelease = true; _lastError = null;
+                    _gyroMonitorCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                        _cts?.Token ?? CancellationToken.None);
+                    // Install and health checks share a single authenticated socket.
+                    _gyroMonitorTask = MonitorGyroAsync(parent, channel, session, _gyroMonitorCancellation.Token);
+                    channel = null; // The monitor now owns this socket.
+                }
             }
-            lock(_gate){_gyroSession=session;_gyroMode=enabled;_gyroEventsConfirmed=false;_gyroMotion.Reset();_gyroLastSample=0;_lookAccumX=_lookAccumY=0;if(enabled){_pendingLookRelease=true;_lastError=null;}}
-            if(session is not null)_=MonitorGyroAsync(parent,session,_cts?.Token??CancellationToken.None);
+            finally { channel?.Dispose(); }
         }
         finally{_lifecycle.Release();}
     }
 
-    private async Task MonitorGyroAsync(SkpdbClient parent,GyroSession session,CancellationToken token)
+    private async Task StopGyroMonitorAsync()
     {
+        CancellationTokenSource? cancellation;
+        Task? monitor;
+        lock (_gate)
+        {
+            cancellation = _gyroMonitorCancellation; monitor = _gyroMonitorTask;
+            _gyroMonitorCancellation = null; _gyroMonitorTask = null;
+        }
+        if (cancellation is null) return;
+        cancellation.Cancel();
+        try { if (monitor is not null) await monitor.ConfigureAwait(false); }
+        finally { cancellation.Dispose(); }
+    }
+
+    private async Task MonitorGyroAsync(SkpdbClient parent, SkpdbClient channel, GyroSession session, CancellationToken token)
+    {
+        using var ownedChannel = channel;
         try
         {
             var started = Stopwatch.GetTimestamp();
             var health = new GyroEventHealth(session.InitialHits);
-            using var channel=await parent.OpenIndependentChannelAsync(token).ConfigureAwait(false);
             while(true)
             {
                 await Task.Delay(500,token).ConfigureAwait(false);
@@ -573,13 +612,18 @@ public sealed class GamepadEngine : IAsyncDisposable
             lock(_gate)
             {
                 if(!ReferenceEquals(_gyroSession,session))return;
-                _gyroSession=null;_gyroEventsConfirmed=false;_gyroMotion.Reset();_lookAccumX=_lookAccumY=0;
+                _gyroMode=false;_gyroSession=null;_gyroEventsConfirmed=false;_gyroMotion.Reset();_lookAccumX=_lookAccumY=0;
             }
             try
             {
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                using var channel = await parent.OpenIndependentChannelAsync(timeout.Token).ConfigureAwait(false);
-                await channel.GyroDisarmAsync(session.Stream, timeout.Token).ConfigureAwait(false);
+                if (channel.IsConnected)
+                    await channel.GyroDisarmAsync(session.Stream, timeout.Token).ConfigureAwait(false);
+                else
+                {
+                    using var recovery = await parent.OpenIndependentChannelAsync(timeout.Token).ConfigureAwait(false);
+                    await recovery.GyroDisarmAsync(session.Stream, timeout.Token).ConfigureAwait(false);
+                }
             }
             catch { await Task.Delay(220).ConfigureAwait(false); }
             lock(_gate){if(_gyroSession is not null)return;_gyroMode=false;_lastError="陀螺仪已停用并恢复触摸视角："+error.Message;}
@@ -1031,7 +1075,7 @@ public sealed class GamepadEngine : IAsyncDisposable
             var now=Stopwatch.GetElapsedTime(0).TotalSeconds;
             var elapsed=_gyroLastSample==0?1.0/240:Math.Max(now-_gyroLastSample,.0001);_gyroLastSample=now;
             if(elapsed>.2){_gyroMotion.Reset();dx=dy=0;}
-            var rate=_gyroMotion.Step(dx,dy,elapsed,_gyroSensitivity*profile.Look.Sensitivity,device.Rotation,profile.Look.InvertY,profile.Look.Smoothing);
+            var rate=_gyroMotion.Step(dx,dy,elapsed,_gyroSensitivity*profile.Look.Sensitivity,device.Rotation,profile.Look.InvertX,profile.Look.InvertY,profile.Look.Smoothing);
             if(releaseRequested||!_inputEnabled){_gyroMotion.Reset();rate=(0,0,0);}
             SendGyroRate(rate.X,rate.Y,rate.Z);
             return;

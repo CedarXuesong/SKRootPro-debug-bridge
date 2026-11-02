@@ -122,7 +122,7 @@ public sealed class LookTouchRelay
         var hasInput = Math.Abs(rawX) + Math.Abs(rawY) > 0.000001;
         if (hasInput || observeHeld) HasGesture = true;
         if (hasInput) _lastInput = nowMs;
-        _remainingX += rawX * _settings.Sensitivity;
+        _remainingX += rawX * _settings.Sensitivity * (_settings.InvertX ? -1 : 1);
         _remainingY += rawY * _settings.Sensitivity * (_settings.InvertY ? -1 : 1);
 
         // Integrate the filter's remainder on idle ticks too. Filtering only

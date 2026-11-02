@@ -350,6 +350,8 @@
                                        Minimum="0" Maximum="0.95" SmallChange="0.05"
                                        SpinButtonPlacementMode="Compact" />
                             </Grid>
+                            <ToggleSwitch x:Name="InvertXToggle" Header="反转 X"
+                                          OnContent="是" OffContent="否" />
                             <ToggleSwitch x:Name="InvertYToggle" Header="反转 Y"
                                           OnContent="是" OffContent="否" />
                             <ComboBox x:Name="RecenterBox" Header="回中方式"

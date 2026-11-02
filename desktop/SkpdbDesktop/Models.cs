@@ -33,7 +33,8 @@ public sealed record ModuleInfo(
     long FastDropped = 0,
     bool FastRealtime = false,
     string BuildChannel = "",
-    bool DebugOverlayEnabled = true);
+    bool DebugOverlayEnabled = true,
+    bool GestureLeaseSupported = false);
 
 public sealed record ExecResult(int ExitCode, string Output);
 

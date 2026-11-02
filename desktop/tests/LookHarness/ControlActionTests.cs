@@ -35,6 +35,34 @@ internal static class ControlActionTests
             Check(downs == 12 && ups == 12 && !action.IsDown && action.PendingCount == 0, "Queued taps lost or duplicated an edge");
         }
         Console.WriteLine("PASS Tap/Skill hold 40ms across separate batches; 12 queued short presses execute exactly once");
+        foreach (var kind in new[] { GamepadControlKind.Tap, GamepadControlKind.Skill })
+        {
+            var action = new SampledButtonAction(Screen, Button(kind), new(), new Random(17));
+            var batch = new List<TouchBatchEvent>();
+            action.Update(true, 0, batch); var held = action.HeldTouch;
+            for (var time = 40; time <= 2000; time += 40)
+            {
+                batch.Clear(); action.Update(true, time, batch);
+                Check(action.IsDown && action.HeldTouch == held && batch.Count == 0, "Normal key lifted while physically held");
+            }
+            action.Update(false, 2001, batch);
+            Check(!action.IsDown && batch.Count(e => e.Action == 3) == 1, "Normal key did not lift on release");
+            Check(GamepadControlCatalog.Info(kind).UsesButtonMode, "Normal key mode is hidden in the editor");
+        }
+        Console.WriteLine("PASS normal Tap/Skill keep one stable randomized contact for two seconds and lift only on release");
+        foreach (var kind in new[] { GamepadControlKind.Tap, GamepadControlKind.Skill })
+        {
+            var action = new SampledButtonAction(Screen, Button(kind), new(), new Random(17));
+            var batch = new List<TouchBatchEvent>();
+            action.Update(true, 0, batch); action.Update(false, 5, batch);
+            action.Update(true, 10, batch); action.Update(false, 15, batch);
+            action.Update(true, 20, batch);
+            for (var t = 25; t <= 2000; t += 5) action.Update(true, t, batch);
+            Check(batch.Count(e => e.Action == 1) == 3 && batch.Count(e => e.Action == 3) == 2 && action.IsDown,
+                "Queued short taps swallowed or prolonged the latest held press");
+            action.Update(false, 2001, batch);
+            Check(!action.IsDown && batch.Count(e => e.Action == 3) == 3, "Latest queued held press stuck");
+        }
 
         foreach (var rotation in new[] { 0, 1, 2, 3 })
         foreach (var kind in new[] { GamepadControlKind.Swipe, GamepadControlKind.Scroll, GamepadControlKind.Zoom })
@@ -60,7 +88,7 @@ internal static class ControlActionTests
         }
         Console.WriteLine("PASS Swipe/Scroll/Zoom preserve duration, midpoint, endpoint and both pulse directions across four rotations");
 
-        foreach (var kind in new[] { GamepadControlKind.Fire, GamepadControlKind.RightWalk, GamepadControlKind.Crosshair })
+        foreach (var kind in new[] { GamepadControlKind.Tap, GamepadControlKind.Skill, GamepadControlKind.Fire, GamepadControlKind.RightWalk, GamepadControlKind.Crosshair })
         foreach (var mode in new[] { GamepadButtonMode.Hold, GamepadButtonMode.Toggle })
         {
             var button = Button(kind); button.Mode = mode;
@@ -73,7 +101,7 @@ internal static class ControlActionTests
             { Check(action.IsDown, "Toggle lifted on physical release"); action.Update(true, 120, batch); }
             Check(!action.IsDown && batch.Count(e => e.Action == 3) == 1, "Hold/toggle did not release exactly once");
         }
-        foreach (var kind in new[] { GamepadControlKind.Rapid, GamepadControlKind.Fire })
+        foreach (var kind in new[] { GamepadControlKind.Rapid, GamepadControlKind.Tap, GamepadControlKind.Skill, GamepadControlKind.Fire })
         foreach (var interval in new[] { 16, 30, 80, 2000 })
         {
             var button = Button(kind); button.Mode = GamepadButtonMode.Rapid; button.TapIntervalMs = interval;

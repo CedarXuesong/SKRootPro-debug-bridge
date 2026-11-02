@@ -7,6 +7,7 @@ if (args.Contains("--build-channel-test")) { await SnapshotTests.RunBuildChannel
 if (args.Contains("--update-test")) { await UpdateTests.RunAsync(); return; }
 if (args.Contains("--self-test")) { PointerRegionTests.Run(); RelayTests.Run(); return; }
 if (args.Contains("--slots-test")) { await DynamicSlotTests.RunAsync(); return; }
+if (args.Contains("--gesture-lease-test")) { await GestureLeaseTests.RunAsync(); return; }
 if (args.Contains("--micro-test")) { await MicroLookTests.RunAsync(); return; }
 if (args.Contains("--gyro-test")) { await GyroTests.RunAsync(); return; }
 if (args.Contains("--overlay-test")) { await SnapshotTests.RunOverlayAsync(); return; }
@@ -47,6 +48,7 @@ string ReadKey()
 var key = ReadKey();
 if(args.Contains("--gyro-lab")){await GyroLabSession.RunAsync(host,key);return;}
 if(args.Contains("--gyro-device-test")){await GyroDeviceTests.RunAsync(host,key);return;}
+if(args.Contains("--multitouch-device-test")){await MultiTouchDeviceTests.RunAsync(host,key);return;}
 if (args.Contains("--soak")) { await SoakTests.RunAsync(host, key, args); return; }
 if (args.Contains("--dispatch-snapshot")) { await DispatchDiagnostics.SnapshotAsync(host, key); return; }
 if (args.Contains("--dispatch-test")) { await DispatchDiagnostics.TestAsync(host, key, args.Contains("--lab"), args.Contains("--dispatch-stay"), args.Contains("--dispatch-cursor")); return; }

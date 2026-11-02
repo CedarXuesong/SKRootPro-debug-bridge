@@ -57,6 +57,15 @@ internal static class RelayTests
         Scenario("filter tail and fractional motion", i => i < 200 ? (0.11, 0.07) : (0.0, 0.0), p => p.Look.Smoothing = .95);
         Scenario("fractional motion across handoffs", _ => (1.11, .37), p => p.Look.Smoothing = .95);
         Scenario("vertical inversion", _ => (1.0, 3.0), p => p.Look.InvertY = true);
+        foreach (var rotation in Enumerable.Range(0, 4))
+        {
+            var device = new TouchDeviceInfo("inversion", "", "", 1280, 2772, 9, true, true)
+                .WithDisplay(rotation, rotation % 2 == 0 ? 1280 : 2772, rotation % 2 == 0 ? 2772 : 1280);
+            Scenario($"horizontal inversion rotation {rotation}", _ => (1.0, 3.0),
+                p => p.Look.InvertX = true, device);
+            Scenario($"both inversions rotation {rotation}", _ => (1.0, 3.0),
+                p => p.Look.InvertX = p.Look.InvertY = true, device);
+        }
         Scenario("no spare slot", _ => (4.0, 0.0), p =>
         {
             p.Buttons = Enumerable.Range(2, 8).Select(s => new GamepadButton { Slot = s }).ToList();
@@ -129,7 +138,7 @@ internal static class RelayTests
         for (var i = 0; i < 1000; i++)
         {
             var (x, y) = input(i);
-            expectedX += x * profile.Look.Sensitivity;
+            expectedX += x * profile.Look.Sensitivity * (profile.Look.InvertX ? -1 : 1);
             expectedY += y * profile.Look.Sensitivity * (profile.Look.InvertY ? -1 : 1);
             var batch = new List<TouchBatchEvent>();
             relay.Update(x, y, now += 4, true, false, false, batch);

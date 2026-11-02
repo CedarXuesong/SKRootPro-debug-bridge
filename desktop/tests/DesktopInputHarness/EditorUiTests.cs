@@ -53,6 +53,33 @@ internal static class EditorUiTests
             sensitivity.Value = .37;
             Check(Math.Abs(sliders[sensitivity].Value - .37) < .0001 && Math.Abs(restored.Look.Sensitivity - .37) < .0001,
                 "Typed number did not update slider/model");
+            var invertX = Field<ToggleSwitch>(page, "InvertXToggle");
+            var invertY = Field<ToggleSwitch>(page, "InvertYToggle");
+            Check(!invertX.IsOn && !invertY.IsOn, "New editor changed inversion defaults");
+            invertX.IsOn = true;
+            Check(restored.Look.InvertX && !restored.Look.InvertY, "X toggle failed to update independently");
+            await Task.Delay(550);
+            var persisted = GamepadProfileStore.Load().Profiles.Single(p => p.Package == profile.Package);
+            Check(persisted.Look.InvertX && !persisted.Look.InvertY, "X toggle was not saved");
+            Call(page, "Undo");
+            restored = Field<GamepadProfile>(page, "_profile");
+            Call(page, "SelectElement", "look", "0");
+            Check(!restored.Look.InvertX && !restored.Look.InvertY && !invertX.IsOn,
+                "Undo did not restore inversion switches");
+            Call(page, "Redo");
+            restored = Field<GamepadProfile>(page, "_profile");
+            Call(page, "SelectElement", "look", "0");
+            Check(restored.Look.InvertX && !restored.Look.InvertY && invertX.IsOn,
+                "Redo did not restore X inversion");
+            invertY.IsOn = true;
+            Check(restored.Look.InvertX && restored.Look.InvertY, "Y toggle changed X preference");
+            restored.ExtraLooks.Add(new GamepadLookSettings { InvertX = false, InvertY = true });
+            Call(page, "SelectElement", "look", "1");
+            Check(!invertX.IsOn && invertY.IsOn && restored.Look.InvertX && restored.Look.InvertY,
+                "Selecting another look component changed saved inversion preferences");
+            Call(page, "SelectElement", "look", "0");
+            Check(invertX.IsOn && invertY.IsOn && !restored.ExtraLooks[0].InvertX && restored.ExtraLooks[0].InvertY,
+                "Returning to the primary look component lost per-component switches");
             Check(Field<NumberBox>(page, "LookWidthBox").Maximum == 1024 && Field<NumberBox>(page, "LookRadiusYBox").Maximum == 512,
                 "Look dimensions exceed device geometry");
             Check(!Field<NumberBox>(page, "SlotBox").IsEnabled, "Logical IDs should remain automatically managed");
@@ -77,7 +104,7 @@ internal static class EditorUiTests
             await (Task)Call(page, "ToggleEditorAsync", false)!;
             var saved = GamepadProfileStore.Load().Profiles.Single(p => p.Package == profile.Package);
             Check(Math.Abs(saved.Buttons[0].Radius - .085) < .0001, "Leaving editor dropped pending changes");
-            Console.WriteLine("PASS real editor: 19 bidirectional sliders, live model, debounce save, grouped undo/redo, safe refresh, geometry limits, picker and collapsible profiles");
+            Console.WriteLine("PASS real editor: 19 bidirectional sliders, independent X/Y inversion, debounce save, undo/redo, per-component switches, safe refresh, geometry limits, picker and collapsible profiles");
         }
         finally
         {

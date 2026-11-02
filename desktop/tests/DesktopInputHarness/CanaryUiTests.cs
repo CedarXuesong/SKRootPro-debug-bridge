@@ -131,6 +131,7 @@ internal static class CanaryUiTests
         var engine = Field<GamepadEngine>(page, "_engine");
         Check(engine.IsRunning, "HUD start failed: " + Field<TextBlock>(page, "StatusText").Text);
         async Task<JsonNode> State() => JsonNode.Parse((await session.Client.ExecAsync("fixture state")).Output)!;
+        Check((await State())["gestureEnabled"]!.GetValue<int>() == 1, "Page start did not acquire gesture lease");
         if (!BuildInfo.UseDebugOverlay(session.Info))
         {
             Check((await State())["hudUpdates"]!.GetValue<int>() == 0 &&
@@ -157,9 +158,11 @@ internal static class CanaryUiTests
             "View mode or hidden cursor stopped HUD");
         await (Task)Call(page, "StopEngineAsync")!;
         Check((await State())["hudEnabled"]!.GetValue<int>() == 0, "Stop retained HUD");
+        Check((await State())["gestureEnabled"]!.GetValue<int>() == 0, "Page stop retained gesture lease");
         await session.Client.ExecAsync("fixture hud-unsupported");
         await (Task)Call(page, "StartEngineAsync")!;
         Check(!engine.IsRunning, "Control started without confirmed HUD support");
+        Check((await State())["gestureEnabled"]!.GetValue<int>() == 0, "Failed HUD start leaked gesture lease");
         await session.Client.ExecAsync("fixture hud-ok");
         await (Task)Call(page, "StartEngineAsync")!;
         Check(engine.IsRunning, "Control did not recover after compatible module");
@@ -168,5 +171,7 @@ internal static class CanaryUiTests
         await session.Client.ExecAsync("fixture hud-ok");
         await (Task)Call(page, "StopEngineAsync")!;
         Console.WriteLine("PASS real page HUD lifecycle: cursor off, look mode, stop, unsupported module, recovery and heartbeat failure stop");
+        Check((await State())["gestureEnabled"]!.GetValue<int>() == 0, "Heartbeat failure cleanup retained gesture lease");
+        Console.WriteLine("PASS real page gesture lease: start, stop, failed start rollback and runtime failure cleanup");
     }
 }

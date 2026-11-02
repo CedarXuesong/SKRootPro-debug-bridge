@@ -134,7 +134,7 @@ internal static class InputUiTests
             Check(covered.Item1 == "look", "Covered move component won over the visible look region");
             Console.WriteLine("PASS activity notifications preserve initialization; editor hits the visible top layer with the rendered circular bounds");
 
-            foreach (var kind in new[] { GamepadControlKind.Fire, GamepadControlKind.RightWalk, GamepadControlKind.Crosshair })
+            foreach (var kind in new[] { GamepadControlKind.Tap, GamepadControlKind.Skill, GamepadControlKind.Fire, GamepadControlKind.RightWalk, GamepadControlKind.Crosshair })
             {
                 var button = new GamepadButton { Kind = kind, Mode = GamepadButtonMode.Rapid };
                 Call(page, "FillButtonFields", button, GamepadControlCatalog.Info(kind));

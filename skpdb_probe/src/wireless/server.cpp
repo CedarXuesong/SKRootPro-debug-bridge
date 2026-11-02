@@ -43,6 +43,8 @@
 #include "common/bytes.h"
 #include "common/channel.h"
 #include "service/config.h"
+#include "service/gesture_lease.h"
+#include "service/connection_workers.h"
 #include "common/frame.h"
 #include "service/knock.h"
 #include "common/session.h"
@@ -63,7 +65,7 @@ constexpr char kBaseCapabilities[] =
     "mem=read,maps,info,scatter,dump,resident,write,scan,sym;mem_ptrace=none;mem_backends=kernel,vm_readv,proc_mem;"
     "touch=inject,info,batch;touch_device=real-touchscreen;touch_ptrace=none;"
     "knock=udp;admin=unix;webui=http;mem_policy=no-fault-default;fast=SKF2;hud=" SKPDB_HUD_CAPABILITY ";"
-    "diagnostics=1;gyro=fw-hook;";
+    "diagnostics=1;gesture_lease=1;gyro=fw-hook;";
 
 std::vector<uint8_t> ErrorResponse(const std::string& message) {
     std::vector<uint8_t> response{opcode::kAdmin, 1};
@@ -204,7 +206,7 @@ bool StopWebUiLoader() {
 class Bridge {
 public:
     Bridge(std::string root_key, std::string module_dir)
-        : root_key_(std::move(root_key)), module_dir_(std::move(module_dir)) {}
+        : root_key_(std::move(root_key)), module_dir_(std::move(module_dir)), gesture_lease_(module_dir_) {}
 
     void Run();
 
@@ -218,9 +220,10 @@ private:
     void StopFast();
     void ServeAdmin(int client);
     void ServeClient(int client);
+    void ClientsIdle();
     void OnKnock(uint32_t address);
 
-    std::vector<uint8_t> OnAdmin(const std::vector<uint8_t>& request);
+    std::vector<uint8_t> OnAdmin(const std::vector<uint8_t>& request, uint64_t owner = 0);
     std::vector<uint8_t> TouchStreamRequest(const std::vector<uint8_t>& request);
     std::string InfoReport();
     std::vector<uint8_t> ConfigUpdate(const std::string& body);
@@ -250,6 +253,8 @@ private:
 
     std::string root_key_;
     std::string module_dir_;
+    GestureLease gesture_lease_;
+    std::atomic<uint64_t> next_gesture_owner_{1};
 
     std::mutex config_mutex_;
     BridgeConfig config_;
@@ -263,7 +268,7 @@ private:
     std::atomic<bool> armed_{false};
 
     std::atomic<bool> listening_{false};
-    std::atomic<int> sessions_{0};
+    ConnectionWorkers client_workers_{16}, admin_workers_{4};
     std::atomic<uint64_t> sessions_total_{0};
     std::atomic<uint32_t> knock_restarts_{0};
     std::atomic<int> webui_port_{0};
@@ -497,19 +502,19 @@ void Bridge::GateLoop() {
             int client = accept4(listener, reinterpret_cast<sockaddr*>(&peer), &length,
                                  SOCK_CLOEXEC);
             if (client >= 0) {
-                if (!PeerAllowed(peer.sin_addr.s_addr) || sessions_.load() >= 16) {
+                if (!PeerAllowed(peer.sin_addr.s_addr)) {
                     close(client);
                 } else {
                     last_activity_.store(static_cast<long long>(std::time(nullptr)));
-                    sessions_.fetch_add(1);
-                    sessions_total_.fetch_add(1);
-                    std::thread([this, client] { ServeClient(client); }).detach();
+                    if (client_workers_.Start(client, [this](int fd) { ServeClient(fd); },
+                                              [this] { ClientsIdle(); }))
+                        sessions_total_.fetch_add(1);
                 }
             }
         }
 
         const uint32_t idle = IdleTimeout();
-        if (!always && idle > 0 && sessions_.load() == 0 &&
+        if (!always && idle > 0 && client_workers_.Active() == 0 &&
             static_cast<long long>(std::time(nullptr)) - last_activity_.load() >= idle) {
             std::lock_guard<std::mutex> guard(listener_mutex_);
             if (listener_ >= 0) {
@@ -544,7 +549,9 @@ void Bridge::WriteHealth() {
          << "knock_restarts=" << knock_restarts_.load() << "\n"
          << "armed=" << (armed_.load() ? 1 : 0) << "\n"
          << "listening=" << (listening_.load() ? 1 : 0) << "\n"
-         << "sessions=" << sessions_.load() << "\n"
+         << "sessions=" << client_workers_.Active() << "\n"
+         << "worker_failures=" << client_workers_.Failures() + admin_workers_.Failures() << "\n"
+         << "worker_rejected=" << client_workers_.Rejected() + admin_workers_.Rejected() << "\n"
          << "sessions_total=" << sessions_total_.load() << "\n"
          << "always_listen=" << (AlwaysListen() ? 1 : 0) << "\n";
     const int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
@@ -563,7 +570,9 @@ void Bridge::HealthLoop() {
         if (stopping_.load()) {
             return;
         }
-        usleep(10 * 1000 * 1000);
+        for (int second = 0; second < 10 && !stopping_.load(); ++second) {
+            usleep(1000 * 1000); gesture_lease_.Tick();
+        }
         WriteHealth();
         const uint64_t ticks = knock_.ticks();
         if (ticks == last_ticks) {
@@ -589,6 +598,7 @@ void Bridge::HealthLoop() {
 }
 
 void Bridge::ServeClient(int client) {
+    SocketStream stream(client);
     int no_delay = 1;
     setsockopt(client, IPPROTO_TCP, TCP_NODELAY, &no_delay, sizeof(no_delay));
     timeval timeout{60, 0};
@@ -597,21 +607,23 @@ void Bridge::ServeClient(int client) {
 
     SessionConfig session;
     session.capabilities = Capabilities();
-    session.admin = [this](const std::vector<uint8_t>& request) { return OnAdmin(request); };
+    const uint64_t owner = next_gesture_owner_.fetch_add(1);
+    session.admin = [this, owner](const std::vector<uint8_t>& request) { return OnAdmin(request, owner); };
 
-    SocketStream stream(client);
-    ServeSession(stream, root_key_, session, -1);
-    if (sessions_.fetch_sub(1) == 1) {
-        CursorSurfaceStop();
-        std::string ignored;GyroDisarm(ignored);
-        std::lock_guard<std::mutex> apply(fast_apply_mutex_);
-        if (sessions_.load() == 0) {
-            std::lock_guard<std::mutex> guard(fast_mutex_);
-            fast_stream_=0;fast_held_.fill(false);fast_frames_.clear();
-            for(auto& slot:fast_slots_)slot.pending=false;
-            TouchShutdown();
-        }
-    }
+    try { ServeSession(stream, root_key_, session, -1); }
+    catch (...) { gesture_lease_.Release(owner); throw; }
+    gesture_lease_.Release(owner);
+}
+
+void Bridge::ClientsIdle() {
+    // ConnectionWorkers fences admission until cleanup has finished.
+    CursorSurfaceStop();
+    std::string ignored; GyroDisarm(ignored);
+    std::lock_guard<std::mutex> apply(fast_apply_mutex_);
+    std::lock_guard<std::mutex> guard(fast_mutex_);
+    fast_stream_=0;fast_held_.fill(false);fast_frames_.clear();
+    for(auto& slot:fast_slots_)slot.pending=false;
+    TouchShutdown();
     // Restart the idle timer from the end of the session, not from its start:
     // a client that just finished must not find the port already closed.
     last_activity_.store(static_cast<long long>(std::time(nullptr)));
@@ -679,7 +691,7 @@ void Bridge::AdminLoop() {
             }
             break;
         }
-        std::thread([this, client] { ServeAdmin(client); }).detach();
+        admin_workers_.Start(client, [this](int fd) { ServeAdmin(fd); }, [] {});
     }
     close(server);
     ::unlink(path.c_str());
@@ -705,6 +717,7 @@ std::string Bridge::InfoReport() {
     text += "build_channel=" SKPDB_BUILD_CHANNEL "\n";
     text += "build_commit=" SKPDB_GIT_COMMIT "\n";
     text += "debug_overlay=" + std::to_string(SKPDB_CANARY) + "\n";
+    text += "gesture_lease=1\n";
     text += "id32=" + std::string(kModuleId32) + "\n";
     text += "pid=" + std::to_string(getpid()) + "\n";
     text += "uptime_seconds=" + std::to_string(uptime) + "\n";
@@ -743,7 +756,10 @@ std::string Bridge::InfoReport() {
     text += std::string("always_listen=") + (config.always_listen ? "1\n" : "0\n");
     text += std::string("listening=") + (listening_.load() ? "yes" : "no") + "\n";
     text += "peers=" + peers + "\n";
-    text += "sessions=" + std::to_string(sessions_.load()) + "\n";
+    text += "sessions=" + std::to_string(client_workers_.Active()) + "\n";
+    text += "admin_sessions=" + std::to_string(admin_workers_.Active()) + "\n";
+    text += "worker_failures=" + std::to_string(client_workers_.Failures() + admin_workers_.Failures()) + "\n";
+    text += "worker_rejected=" + std::to_string(client_workers_.Rejected() + admin_workers_.Rejected()) + "\n";
     text += "sessions_total=" + std::to_string(sessions_total_.load()) + "\n";
     text += "webui_port=" + std::to_string(webui > 0 && PortAccepting(webui) ? webui : 0) + "\n";
     text += "auth=key-each-connection\n";
@@ -849,7 +865,7 @@ void Bridge::WebUiWatchLoop() {
     }
 }
 
-std::vector<uint8_t> Bridge::OnAdmin(const std::vector<uint8_t>& request) {
+std::vector<uint8_t> Bridge::OnAdmin(const std::vector<uint8_t>& request, uint64_t owner) {
     if (request.size() < 2) {
         return ErrorResponse("admin request needs an action");
     }
@@ -868,6 +884,12 @@ std::vector<uint8_t> Bridge::OnAdmin(const std::vector<uint8_t>& request) {
         case kAdminDiagnostics:
             if (!body.empty()) return ErrorResponse("diagnostics takes no arguments");
             return TextResponse(CapabilityDiagnostics());
+        case kAdminGestureLease: {
+            if (request.size() != 3 || request[2] > 2) return ErrorResponse("invalid gesture lease request");
+            std::string report, error;
+            if (!gesture_lease_.Apply(owner, request[2] != 0, report, error, request[2] == 2)) return ErrorResponse(error);
+            return TextResponse(report);
+        }
         default:
             return ErrorResponse("unknown admin action");
     }
@@ -1205,6 +1227,7 @@ void Bridge::Run() {
     // A diagnostic loader may inherit SIGCHLD=SIG_IGN from its launcher.
     // ExecuteCommand owns waitpid() for its children and must be able to reap.
     signal(SIGCHLD, SIG_DFL);
+    (void)gesture_lease_.Recover();
     started_.store(static_cast<long long>(std::time(nullptr)), std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> guard(config_mutex_);

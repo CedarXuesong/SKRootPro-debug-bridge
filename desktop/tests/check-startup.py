@@ -50,13 +50,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--client", type=Path, default=root / "dist/SKPDB/SKPDB.exe")
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--expected-title", default="SKPDB",
+                        help="Exact main window title, including version when present")
     parser.add_argument("--settle-seconds", type=float, default=10)
     parser.add_argument("--dotnet-root", type=Path, help="Optional runtime override; default uses the installed runtime")
     args = parser.parse_args()
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     log = root / ".scratch" / f"production-smoke-{stamp}.log"
     report_path = args.report or root / ".scratch" / f"production-smoke-{stamp}.json"
-    result = {"created": datetime.now().astimezone().isoformat(), "exe": str(args.client.resolve()), "log": str(log), "passed": False}
+    result = {"created": datetime.now().astimezone().isoformat(), "exe": str(args.client.resolve()),
+              "expectedTitle": args.expected_title, "log": str(log), "passed": False}
     user = ctypes.WinDLL("user32", use_last_error=True)
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     user.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
@@ -129,7 +132,7 @@ def main():
         result["visibleWindows"] = windows
         result["runningAtCheck"] = process.poll() is None
         result["unexpectedWindows"] = [w for w in seen.values()
-                                       if w["class"] == "#32770" or (w["title"] and w["title"] != "SKPDB")]
+                                       if w["class"] == "#32770" or (w["title"] and w["title"] != args.expected_title)]
         if result["runningAtCheck"]:
             handle = kernel.OpenProcess(0x0410, False, process.pid)
             if not handle:
@@ -151,7 +154,7 @@ def main():
                 result["loadedModules"] = paths
             finally:
                 kernel.CloseHandle(handle)
-        main_windows = [w for w in windows if w["title"] == "SKPDB" and w["class"] != "#32770"]
+        main_windows = [w for w in windows if w["title"] == args.expected_title and w["class"] != "#32770"]
         for window in main_windows:
             user.PostMessageW(window["hwnd"], 0x0010, 0, 0)
         try:

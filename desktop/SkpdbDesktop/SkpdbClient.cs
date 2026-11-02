@@ -403,7 +403,7 @@ public sealed class SkpdbClient : IDisposable
             GetLong("fast_stale"), Get("admin_socket"),
             GetInt("fast_max_records") is > 0 and <= 16 ? GetInt("fast_max_records") : 8,
             GetLong("fast_rx"), GetLong("fast_ok"), GetLong("fast_dropped"), Get("fast_realtime") == "1",
-            Get("build_channel"), Get("debug_overlay") != "0");
+            Get("build_channel"), Get("debug_overlay") != "0", Get("gesture_lease") == "1");
     }
 
     public async Task<string> PingAsync(CancellationToken cancellationToken = default)
@@ -626,6 +626,19 @@ public sealed class SkpdbClient : IDisposable
         }
         var payload = await RequestAsync(OpAdmin, body, cancellationToken).ConfigureAwait(false);
         return Encoding.UTF8.GetString(payload);
+    }
+
+    public async Task<bool> SetGestureLeaseAsync(bool enabled, CancellationToken cancellationToken = default, bool renew = false)
+    {
+        var payload = await RequestAsync(OpAdmin, new byte[] { 7, enabled ? (renew ? (byte)2 : (byte)1) : (byte)0 }, cancellationToken)
+            .ConfigureAwait(false);
+        var fields = Encoding.UTF8.GetString(payload).Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split('=', 2)).Where(pair => pair.Length == 2)
+            .ToDictionary(pair => pair[0], pair => pair[1]);
+        if (fields.GetValueOrDefault("gesture_lease") != (enabled ? "1" : "0") ||
+            fields.GetValueOrDefault("gesture_changed") is not ("0" or "1"))
+            throw new InvalidOperationException("模块未确认系统手势协调，请更新配套模块");
+        return fields["gesture_changed"] == "1";
     }
 
     public async Task<string> CursorProbeAsync(CancellationToken cancellationToken = default)

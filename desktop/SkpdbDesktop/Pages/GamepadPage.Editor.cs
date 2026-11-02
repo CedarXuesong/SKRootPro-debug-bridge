@@ -39,6 +39,7 @@ public sealed partial class GamepadPage
             slider.ValueChanged += (_, _) => PreviewPropertyChange(slider);
         }
         Snap8Toggle.Toggled += (_, _) => PreviewPropertyChange(Snap8Toggle);
+        InvertXToggle.Toggled += (_, _) => PreviewPropertyChange(InvertXToggle);
         InvertYToggle.Toggled += (_, _) => PreviewPropertyChange(InvertYToggle);
         RecenterBox.SelectionChanged += (_, _) => PreviewPropertyChange(RecenterBox);
         ButtonModeBox.SelectionChanged += (_, _) => PreviewPropertyChange(ButtonModeBox);

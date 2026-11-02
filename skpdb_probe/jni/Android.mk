@@ -19,7 +19,7 @@ $(error Pass SKROOT_SDK=/path/to/authorized/sdk)
 endif
 SKROOT_KIT := $(SKROOT_SDK)/lib/libkernel_module_kit_static.a
 
-COMMON_CPPFLAGS := -std=c++20 -fPIC -fvisibility=hidden -fno-stack-protector
+COMMON_CPPFLAGS := -std=c++20 -fPIC -fvisibility=hidden -fno-stack-protector -fexceptions
 SKPDB_CANARY ?= 0
 ifneq ($(SKPDB_CANARY),0)
 ifneq ($(SKPDB_CANARY),1)
@@ -52,6 +52,7 @@ LOCAL_SRC_FILES := \
     ../src/input/touch.cpp ../src/input/touch_guard.cpp \
     ../src/input/gyro.cpp \
     ../src/service/config.cpp \
+    ../src/service/gesture_lease.cpp \
     ../src/common/crypto.cpp \
     ../src/common/files.cpp \
     ../src/common/frame.cpp \
